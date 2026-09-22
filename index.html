@@ -75,23 +75,40 @@ h2:first-child{margin-top:0}
   display:grid;gap:2px;background:var(--ink-800);
   border:1px solid var(--line);border-radius:var(--r-md);padding:4px;
   width:100%;aspect-ratio:1;touch-action:manipulation;
+  /* **줄도 칸도 1fr 로 못 박는다.** 줄을 자동으로 두면 안에 든 SVG 가
+     높이를 밀어 올려서 칸이 세로로 길어진다 */
+  grid-template-columns:repeat(4,1fr);
+  grid-template-rows:repeat(4,1fr);
 }
 .board.big{max-width:min(92vw,420px);margin:0 auto}
 .board .px{background:var(--ink-700);border-radius:3px;overflow:hidden;
-  position:relative}
-.board .px svg{display:block;width:100%;height:100%}
+  position:relative;min-width:0;min-height:0}
+/* 그림은 **자리를 안 차지한다.** 띄워 놓아야 칸 크기를 건드리지 못한다 */
+.board .px svg{position:absolute;inset:0;display:block;
+  width:100%;height:100%}
 .board .px svg path{fill:var(--text)}
 .board.tap .px{cursor:pointer}
 .board .px.pick{outline:2px solid var(--gold);outline-offset:-2px}
 .board .px.dim svg path{fill:var(--faint)}
 .board .px.hot svg path{fill:var(--gold)}
+/* 왼쪽 위 모서리로 쓸 수 있는 칸 — 눌러도 되는 데가 어디인지 보인다 */
+.board .px.ok::after{content:"";position:absolute;inset:0;border-radius:3px;
+  border:1px dashed var(--line-2);pointer-events:none}
+.board .px.pick::after{border-color:transparent}
+
+/* 한 칸씩 밀기 — 손가락이 굵어도 자리를 정확히 잡는다 */
+.nudge{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-2);
+  margin-bottom:var(--s-3)}
+.nudge button{font-size:18px;padding:11px 0;text-align:center}
 
 /* 작은 미리보기 */
 .mini{width:44px;height:44px;flex:none;display:grid;gap:1px;
   background:var(--ink-800);border:1px solid var(--line);
-  border-radius:5px;padding:2px}
-.mini div{background:var(--ink-700);border-radius:1px;overflow:hidden}
-.mini svg{display:block;width:100%;height:100%}
+  border-radius:5px;padding:2px;
+  grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr)}
+.mini div{background:var(--ink-700);border-radius:1px;overflow:hidden;
+  position:relative;min-width:0;min-height:0}
+.mini svg{position:absolute;inset:0;display:block;width:100%;height:100%}
 .mini svg path{fill:var(--text)}
 
 /* ── 줄 목록 ─────────────────────────────────────────────────── */
@@ -207,7 +224,14 @@ textarea{
     <div class="shapes" id="shapes"></div>
 
     <h2>자리 <span class="sub" id="at-say"></span></h2>
-    <p class="note">눌러서 **왼쪽 위 모서리**를 잡는다.</p>
+    <p class="note">판을 눌러 <b>왼쪽 위 모서리</b>를 잡거나, 아래 단추로
+      한 칸씩 민다. 놓을 수 있는 자리는 테를 둘러 두었다.</p>
+    <div class="nudge">
+      <button class="btn" data-d="u">↑</button>
+      <button class="btn" data-d="l">←</button>
+      <button class="btn" data-d="r">→</button>
+      <button class="btn" data-d="d">↓</button>
+    </div>
     <div class="board big tap" id="at-board"></div>
 
     <h2>합쳐 보기</h2>
@@ -503,16 +527,16 @@ function drawFilm() {
       el.onclick = function () { f.s = el.dataset.k; save(); draw(); };
     });
 
-  /* 자리 — 왼쪽 위 모서리를 눌러 잡는다 */
-  document.getElementById("at-say").textContent = "(" + f.r + ", " + f.c + ")";
+  /* 자리 — 왼쪽 위 모서리를 눌러 잡거나 단추로 한 칸씩 민다 */
+  document.getElementById("at-say").textContent =
+    "(" + f.r + ", " + f.c + ")  줄 " + f.r + " · 칸 " + f.c;
   var spread = raster(f);
   paint(document.getElementById("at-board"), spread, function (i) {
     var r = (i / G) | 0, c = i % G;
     var inside = r >= f.r && r < f.r + f.n && c >= f.c && c < f.c + f.n;
-    var canPut = r <= G - f.n && c <= G - f.n;
     var cls = inside ? "hot" : "dim";
+    if (r <= G - f.n && c <= G - f.n) cls += " ok";   /* 여기 놓을 수 있다 */
     if (r === f.r && c === f.c) cls += " pick";
-    if (!canPut) cls += "";
     return cls;
   });
   document.getElementById("at-board").querySelectorAll(".px").forEach(
@@ -520,13 +544,28 @@ function drawFilm() {
       el.onclick = function () {
         var i = +el.dataset.i, r = (i / G) | 0, c = i % G;
         if (r > G - f.n || c > G - f.n) {
-          toast("이 크기는 거기 못 놓는다");
+          toast(f.n + "×" + f.n + " 은 거기 못 놓는다");
           return;
         }
         f.r = r; f.c = c;
         save(); draw();
       };
     });
+
+  /* 한 칸씩 밀기. 판 밖으로는 안 나간다 */
+  document.querySelectorAll(".nudge button").forEach(function (el) {
+    var d = el.dataset.d;
+    var lim = G - f.n;
+    el.disabled = (d === "u" && f.r === 0) || (d === "d" && f.r >= lim) ||
+                  (d === "l" && f.c === 0) || (d === "r" && f.c >= lim);
+    el.onclick = function () {
+      if (d === "u") f.r = Math.max(0, f.r - 1);
+      if (d === "d") f.r = Math.min(lim, f.r + 1);
+      if (d === "l") f.c = Math.max(0, f.c - 1);
+      if (d === "r") f.c = Math.min(lim, f.c + 1);
+      save(); draw();
+    };
+  });
 
   /* 합쳐 보기 — 이 필름은 금빛, 나머지는 어둡게 */
   var others = g.films.filter(function (x, k) { return k !== at.film; });
