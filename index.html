@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#12100d">
+<title>필름 겹치기 편집기</title>
+<style>
+/* ─────────────────────────────────────────────────────────────────
+   여의주 규격을 그대로 가져왔다 (server/static/ys.css).
+   여기는 혼자 도는 한 장짜리라 필요한 것만 옮겨 적는다.
+   ───────────────────────────────────────────────────────────── */
+:root{
+  --ink-900:#12100d; --ink-800:#1b1815; --ink-700:#221e1a;
+  --line:#332e28; --line-2:#4a433a;
+  --text:#ece7de; --dim:#8b8275; --faint:#463f37;
+  --gold:#e8b339; --gold-lit:#ffd873;
+  --green:#3fb950; --red:#e5534b;
+  --font:"Pretendard Variable",Pretendard,-apple-system,"Malgun Gothic",
+    "맑은 고딕",system-ui,sans-serif;
+  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-6:24px;
+  --r-sm:6px; --r-md:10px; --r-lg:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{
+  background:var(--ink-900);color:var(--text);
+  font:15px/1.6 var(--font);
+  display:flex;flex-direction:column;
+  overscroll-behavior:none;
+}
+
+/* ── 머리 ────────────────────────────────────────────────────── */
+header{
+  flex:none;display:flex;align-items:center;gap:var(--s-3);
+  padding:max(10px,env(safe-area-inset-top)) var(--s-4) 10px;
+  border-bottom:1px solid var(--line);background:var(--ink-800);
+  position:sticky;top:0;z-index:10;
+}
+header h1{font-size:16px;margin:0;font-weight:600;flex:1;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header .sub{color:var(--dim);font-size:12px;font-weight:400;margin-left:6px}
+
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+.btn{
+  background:var(--ink-700);border:1px solid var(--line);
+  border-radius:var(--r-sm);padding:9px 13px;font-size:14px;
+  color:var(--text);white-space:nowrap;
+}
+.btn:active{background:var(--line)}
+.btn.gold{border-color:var(--gold);color:var(--gold)}
+.btn.warn{border-color:var(--red);color:var(--red)}
+.btn.on{background:var(--text);color:var(--ink-900);border-color:var(--text);
+  font-weight:700}
+.btn.wide{width:100%;text-align:center}
+.btn:disabled{opacity:.3;cursor:default}
+
+main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:var(--s-4) var(--s-4) calc(40px + env(safe-area-inset-bottom))}
+section{display:none}
+section.on{display:block}
+
+h2{font-size:12px;color:var(--dim);font-weight:600;letter-spacing:.06em;
+  margin:var(--s-6) 0 var(--s-2);padding-bottom:5px;
+  border-bottom:1px solid var(--line)}
+h2:first-child{margin-top:0}
+.note{color:var(--faint);font-size:12px;line-height:1.7;margin:var(--s-2) 0 0}
+.row{display:flex;gap:var(--s-2);flex-wrap:wrap}
+.row > *{flex:1}
+
+/* ── 판 ──────────────────────────────────────────────────────── */
+/* 칸을 두 대각선으로 넷(북·동·남·서)으로 쪼개 칠한다. 글자로는 못 쓰는
+   「사분의 삼」도 이 방식이면 그냥 그려진다 */
+.board{
+  display:grid;gap:2px;background:var(--ink-800);
+  border:1px solid var(--line);border-radius:var(--r-md);padding:4px;
+  width:100%;aspect-ratio:1;touch-action:manipulation;
+}
+.board.big{max-width:min(92vw,420px);margin:0 auto}
+.board .px{background:var(--ink-700);border-radius:3px;overflow:hidden;
+  position:relative}
+.board .px svg{display:block;width:100%;height:100%}
+.board .px svg path{fill:var(--text)}
+.board.tap .px{cursor:pointer}
+.board .px.pick{outline:2px solid var(--gold);outline-offset:-2px}
+.board .px.dim svg path{fill:var(--faint)}
+.board .px.hot svg path{fill:var(--gold)}
+
+/* 작은 미리보기 */
+.mini{width:44px;height:44px;flex:none;display:grid;gap:1px;
+  background:var(--ink-800);border:1px solid var(--line);
+  border-radius:5px;padding:2px}
+.mini div{background:var(--ink-700);border-radius:1px;overflow:hidden}
+.mini svg{display:block;width:100%;height:100%}
+.mini svg path{fill:var(--text)}
+
+/* ── 줄 목록 ─────────────────────────────────────────────────── */
+.item{
+  display:flex;align-items:center;gap:var(--s-3);
+  background:var(--ink-800);border:1px solid var(--line);
+  border-radius:var(--r-md);padding:10px var(--s-3);margin-bottom:var(--s-2);
+  cursor:pointer;
+}
+.item:active{border-color:var(--line-2)}
+.item .who{flex:1;min-width:0}
+.item .who b{display:block;font-size:15px;font-weight:600}
+.item .who span{display:block;color:var(--dim);font-size:12px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .go{color:var(--faint);font-size:18px;flex:none}
+.empty{color:var(--faint);font-size:13px;text-align:center;
+  padding:var(--s-6) 0;border:1px dashed var(--line);border-radius:var(--r-md)}
+
+/* ── 필름 고르기 ─────────────────────────────────────────────── */
+.shapes{display:flex;gap:var(--s-2);flex-wrap:wrap}
+.shapes button{
+  width:52px;height:52px;border:1px solid var(--line);border-radius:var(--r-sm);
+  background:var(--ink-700);padding:5px;
+}
+.shapes button.on{border-color:var(--gold);background:var(--ink-800)}
+.shapes button svg{display:block;width:100%;height:100%}
+.shapes button svg path{fill:var(--dim)}
+.shapes button.on svg path{fill:var(--gold)}
+.shapes button svg rect{fill:none;stroke:var(--faint);stroke-width:2}
+
+input[type=text]{
+  width:100%;background:var(--ink-700);border:1px solid var(--line);
+  border-radius:var(--r-sm);padding:10px var(--s-3);color:var(--text);
+  font:inherit;font-size:15px;
+}
+
+textarea{
+  width:100%;height:150px;background:var(--ink-800);color:var(--dim);
+  border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:var(--s-3);font:12px/1.5 "Cascadia Mono",Consolas,monospace;
+  resize:vertical;
+}
+
+/* 알림 한 줄 */
+.toast{
+  position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));
+  transform:translate(-50%,10px);opacity:0;pointer-events:none;
+  background:var(--ink-800);border:1px solid var(--green);
+  color:var(--green);padding:9px 18px;border-radius:999px;font-size:13px;
+  transition:opacity .18s,transform .18s;z-index:50;white-space:nowrap;
+}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+
+<header>
+  <button class="btn" id="back" hidden>← 뒤로</button>
+  <h1 id="title">필름 겹치기</h1>
+</header>
+
+<main>
+  <!-- ── 1. 그리드 목록 ───────────────────────────────────────── -->
+  <section id="v-grids" class="on">
+    <h2>그리드</h2>
+    <div id="grid-list"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn gold wide" id="add-grid">＋ 그리드 더하기</button>
+    </div>
+
+    <h2>전부 내보내기</h2>
+    <p class="note">모든 그리드를 한 덩어리로. 눌러서 복사한다.</p>
+    <textarea id="all-json" readonly></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" id="copy-all">전부 복사</button>
+      <button class="btn warn" id="wipe">싹 지우기</button>
+    </div>
+  </section>
+
+  <!-- ── 2. 그리드 하나 ───────────────────────────────────────── -->
+  <section id="v-grid">
+    <h2>겹친 모습</h2>
+    <div class="board big" id="grid-board"></div>
+
+    <h2>이름</h2>
+    <input type="text" id="grid-name" placeholder="그리드 이름">
+
+    <h2>필름 <span class="sub" id="film-count"></span></h2>
+    <p class="note">위에서부터 차례로 겹친다. 합집합이라 차례는 결과를
+      바꾸지 않는다.</p>
+    <div id="film-list"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn gold wide" id="add-film">＋ 필름 더하기</button>
+    </div>
+
+    <h2>이 그리드만 내보내기</h2>
+    <textarea id="grid-json" readonly></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" id="copy-grid">이 그리드 복사</button>
+      <button class="btn warn" id="del-grid">그리드 지우기</button>
+    </div>
+  </section>
+
+  <!-- ── 3. 필름 하나 ─────────────────────────────────────────── -->
+  <section id="v-film">
+    <h2>이 필름만</h2>
+    <div class="board big" id="film-board"></div>
+
+    <h2>크기</h2>
+    <div class="row" id="sizes"></div>
+
+    <h2>도형</h2>
+    <div class="shapes" id="shapes"></div>
+
+    <h2>자리 <span class="sub" id="at-say"></span></h2>
+    <p class="note">눌러서 **왼쪽 위 모서리**를 잡는다.</p>
+    <div class="board big tap" id="at-board"></div>
+
+    <h2>합쳐 보기</h2>
+    <p class="note">이 필름은 <b style="color:var(--gold)">금빛</b>,
+      나머지는 어둡게.</p>
+    <div class="board big" id="with-board"></div>
+
+    <div class="row" style="margin-top:16px">
+      <button class="btn warn wide" id="del-film">필름 지우기</button>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ─────────────────────────────────────────────────────────────────
+   필름 겹치기 편집기
+
+   필름 = 판에서 **정사각형** 자리를 골라, 도형 하나를 그 크기로 **키워**
+   칸에 구운 것. 겹치기는 칸마다 **합집합**이다.
+
+   칸 하나를 두 대각선으로 넷으로 쪼개 본다 — 북 N · 동 E · 남 S · 서 W
+
+       □ 없음   ◤ N+W   ◥ N+E   ◣ W+S   ◢ S+E   ■ 넷 다
+
+   합집합이니 나올 수 있는 칸은 6가지가 아니라 **10가지**다. ◣ 와 ◢ 를
+   겹치면 북쪽 쐐기만 빈 「사분의 삼」이 되는데, 유니코드에 그 글자가
+   없다. 그래서 여기서는 글자를 안 쓰고 **쐐기 넷을 직접 그린다.**
+   ───────────────────────────────────────────────────────────── */
+"use strict";
+
+var G = 4;                                  /* 판은 4×4 */
+var N = 1, E = 2, S = 4, W = 8;
+var SHAPES = [
+  {k: "□", m: 0},
+  {k: "■", m: 15},
+  {k: "◣", m: W | S},
+  {k: "◢", m: S | E},
+  {k: "◤", m: N | W},
+  {k: "◥", m: N | E}
+];
+var MASK = {};
+SHAPES.forEach(function (s) { MASK[s.k] = s.m; });
+
+/* ── 필름을 칸에 굽는다 ───────────────────────────────────────── */
+/* n×n 으로 키운 도형에서 (dr,dc) 칸이 어떻게 잘리나 */
+function wedges(k, n, dr, dc) {
+  if (k === "■") return 15;
+  if (k === "□") return 0;
+  if (k === "◣" || k === "◥") {             /* 좌상~우하 대각선 */
+    if (dr === dc) return MASK[k];
+    return (dr > dc) === (k === "◣") ? 15 : 0;
+  }
+  /* ◤ ◢ — 우상~좌하 대각선 */
+  if (dr + dc === n - 1) return MASK[k];
+  return (dr + dc < n - 1) === (k === "◤") ? 15 : 0;
+}
+
+/* 필름 하나를 16칸 배열로 */
+function raster(f) {
+  var out = new Array(G * G).fill(0);
+  for (var dr = 0; dr < f.n; dr++) {
+    for (var dc = 0; dc < f.n; dc++) {
+      var w = wedges(f.s, f.n, dr, dc);
+      if (w) out[(f.r + dr) * G + (f.c + dc)] |= w;
+    }
+  }
+  return out;
+}
+
+/* 여러 장을 겹친다 — 칸마다 합집합 */
+function compose(films) {
+  var out = new Array(G * G).fill(0);
+  films.forEach(function (f) {
+    var one = raster(f);
+    for (var i = 0; i < G * G; i++) out[i] |= one[i];
+  });
+  return out;
+}
+
+/* ── 칸 그리기 ────────────────────────────────────────────────── */
+/* 쐐기 넷을 삼각형으로 그린다. 글꼴에 기대지 않으니 어디서나 똑같다 */
+var WEDGE = {};
+WEDGE[N] = "M0 0 H100 L50 50 Z";
+WEDGE[E] = "M100 0 V100 L50 50 Z";
+WEDGE[S] = "M100 100 H0 L50 50 Z";
+WEDGE[W] = "M0 100 V0 L50 50 Z";
+
+function cellSVG(mask) {
+  if (!mask) return "";
+  var d = "";
+  [N, E, S, W].forEach(function (b) { if (mask & b) d += WEDGE[b] + " "; });
+  return '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="' +
+         d.trim() + '"/></svg>';
+}
+
+/* 판 하나를 채운다. mark(i) 가 돌려주는 글자를 칸 class 에 얹는다 */
+function paint(el, cells, mark) {
+  el.style.gridTemplateColumns = "repeat(" + G + ",1fr)";
+  var html = "";
+  for (var i = 0; i < G * G; i++) {
+    var extra = mark ? mark(i) : "";
+    html += '<div class="px ' + extra + '" data-i="' + i + '">' +
+            cellSVG(cells[i]) + "</div>";
+  }
+  el.innerHTML = html;
+}
+
+function miniHTML(cells) {
+  var html = '<div class="mini" style="grid-template-columns:repeat(' +
+             G + ',1fr)">';
+  for (var i = 0; i < G * G; i++) html += "<div>" + cellSVG(cells[i]) + "</div>";
+  return html + "</div>";
+}
+
+/* 도형 단추에 쓸 그림 — 1×1 짜리 모양 그대로 */
+function shapeSVG(k) {
+  if (k === "□") {
+    return '<svg viewBox="0 0 100 100"><rect x="6" y="6" width="88" ' +
+           'height="88" rx="6"/></svg>';
+  }
+  var d = "";
+  [N, E, S, W].forEach(function (b) { if (MASK[k] & b) d += WEDGE[b] + " "; });
+  return '<svg viewBox="0 0 100 100"><path d="' + d.trim() + '"/></svg>';
+}
+
+/* ── 담아 두기 ───────────────────────────────────────────────── */
+var KEY = "film.book.v1";
+var DB = {grids: []};
+var at = {grid: -1, film: -1};             /* 지금 보고 있는 것 */
+
+function load() {
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw) {
+      var got = JSON.parse(raw);
+      if (got && Array.isArray(got.grids)) DB = got;
+    }
+  } catch (e) {}
+  if (!DB.grids.length) DB.grids.push({name: "1번", films: []});
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(DB)); } catch (e) {}
+}
+
+function grid() { return DB.grids[at.grid]; }
+function film() { return grid().films[at.film]; }
+
+/* ── 내보내기 ────────────────────────────────────────────────── */
+function tidy(g) {
+  return {
+    name: g.name,
+    films: g.films.map(function (f) {
+      return {n: f.n, r: f.r, c: f.c, s: f.s};
+    })
+  };
+}
+function allJSON() {
+  return JSON.stringify({w: G, h: G, grids: DB.grids.map(tidy)}, null, 1);
+}
+function gridJSON() {
+  return JSON.stringify(tidy(grid()), null, 1);
+}
+
+var toastAt = 0;
+function toast(say) {
+  var el = document.getElementById("toast");
+  el.textContent = say;
+  el.classList.add("on");
+  clearTimeout(toastAt);
+  toastAt = setTimeout(function () { el.classList.remove("on"); }, 1600);
+}
+
+function copy(text, say) {
+  function fallback() {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);      /* iOS 는 이게 있어야 잡힌다 */
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+    toast(say);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () { toast(say); },
+                                             fallback);
+  } else {
+    fallback();
+  }
+}
+
+/* ── 화면 갈아 끼우기 ────────────────────────────────────────── */
+var VIEWS = ["v-grids", "v-grid", "v-film"];
+var view = "v-grids";
+
+function go(name) {
+  view = name;
+  VIEWS.forEach(function (v) {
+    document.getElementById(v).classList.toggle("on", v === name);
+  });
+  document.getElementById("back").hidden = name === "v-grids";
+  document.querySelector("main").scrollTop = 0;
+  draw();
+}
+
+function say(n) {
+  return n + "장";
+}
+
+/* ── 그리기 ──────────────────────────────────────────────────── */
+function drawGrids() {
+  var box = document.getElementById("grid-list");
+  if (!DB.grids.length) {
+    box.innerHTML = '<div class="empty">그리드가 없다</div>';
+  } else {
+    box.innerHTML = DB.grids.map(function (g, k) {
+      return '<div class="item" data-k="' + k + '">' +
+        miniHTML(compose(g.films)) +
+        '<div class="who"><b>' + esc(g.name || (k + 1) + "번") + "</b>" +
+        "<span>" + say(g.films.length) + "</span></div>" +
+        '<div class="go">›</div></div>';
+    }).join("");
+    box.querySelectorAll(".item").forEach(function (el) {
+      el.onclick = function () { at.grid = +el.dataset.k; go("v-grid"); };
+    });
+  }
+  document.getElementById("all-json").value = allJSON();
+  document.getElementById("title").textContent = "필름 겹치기";
+}
+
+function drawGrid() {
+  var g = grid();
+  document.getElementById("title").textContent = g.name || "그리드";
+  paint(document.getElementById("grid-board"), compose(g.films));
+  document.getElementById("grid-name").value = g.name || "";
+  document.getElementById("film-count").textContent = say(g.films.length);
+
+  var box = document.getElementById("film-list");
+  if (!g.films.length) {
+    box.innerHTML = '<div class="empty">필름이 없다</div>';
+  } else {
+    box.innerHTML = g.films.map(function (f, k) {
+      return '<div class="item" data-k="' + k + '">' +
+        miniHTML(raster(f)) +
+        '<div class="who"><b>' + f.s + "  " + f.n + "×" + f.n + "</b>" +
+        "<span>(" + f.r + ", " + f.c + ") 에서</span></div>" +
+        '<div class="go">›</div></div>';
+    }).join("");
+    box.querySelectorAll(".item").forEach(function (el) {
+      el.onclick = function () { at.film = +el.dataset.k; go("v-film"); };
+    });
+  }
+  document.getElementById("grid-json").value = gridJSON();
+}
+
+function drawFilm() {
+  var f = film(), g = grid();
+  document.getElementById("title").textContent = f.s + " " + f.n + "×" + f.n;
+
+  paint(document.getElementById("film-board"), raster(f));
+
+  /* 크기 */
+  document.getElementById("sizes").innerHTML = [1, 2, 3, 4].map(function (n) {
+    return '<button class="btn' + (f.n === n ? " on" : "") +
+           '" data-n="' + n + '">' + n + "×" + n + "</button>";
+  }).join("");
+  document.getElementById("sizes").querySelectorAll("button").forEach(
+    function (el) {
+      el.onclick = function () {
+        f.n = +el.dataset.n;
+        /* 판 밖으로 나가면 도로 끌어들인다 */
+        f.r = Math.min(f.r, G - f.n);
+        f.c = Math.min(f.c, G - f.n);
+        save(); draw();
+      };
+    });
+
+  /* 도형 */
+  document.getElementById("shapes").innerHTML = SHAPES.map(function (s) {
+    return '<button class="' + (f.s === s.k ? "on" : "") +
+           '" data-k="' + s.k + '" title="' + s.k + '">' +
+           shapeSVG(s.k) + "</button>";
+  }).join("");
+  document.getElementById("shapes").querySelectorAll("button").forEach(
+    function (el) {
+      el.onclick = function () { f.s = el.dataset.k; save(); draw(); };
+    });
+
+  /* 자리 — 왼쪽 위 모서리를 눌러 잡는다 */
+  document.getElementById("at-say").textContent = "(" + f.r + ", " + f.c + ")";
+  var spread = raster(f);
+  paint(document.getElementById("at-board"), spread, function (i) {
+    var r = (i / G) | 0, c = i % G;
+    var inside = r >= f.r && r < f.r + f.n && c >= f.c && c < f.c + f.n;
+    var canPut = r <= G - f.n && c <= G - f.n;
+    var cls = inside ? "hot" : "dim";
+    if (r === f.r && c === f.c) cls += " pick";
+    if (!canPut) cls += "";
+    return cls;
+  });
+  document.getElementById("at-board").querySelectorAll(".px").forEach(
+    function (el) {
+      el.onclick = function () {
+        var i = +el.dataset.i, r = (i / G) | 0, c = i % G;
+        if (r > G - f.n || c > G - f.n) {
+          toast("이 크기는 거기 못 놓는다");
+          return;
+        }
+        f.r = r; f.c = c;
+        save(); draw();
+      };
+    });
+
+  /* 합쳐 보기 — 이 필름은 금빛, 나머지는 어둡게 */
+  var others = g.films.filter(function (x, k) { return k !== at.film; });
+  var rest = compose(others);
+  var whole = compose(g.films);
+  paint(document.getElementById("with-board"), whole, function (i) {
+    if (!whole[i]) return "";
+    /* 이 필름이 새로 칠한 쐐기가 있나 */
+    return (spread[i] & ~rest[i]) ? "hot" : "dim";
+  });
+}
+
+function draw() {
+  if (view === "v-grids") drawGrids();
+  else if (view === "v-grid") drawGrid();
+  else drawFilm();
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c];
+  });
+}
+
+/* ── 단추 ────────────────────────────────────────────────────── */
+document.getElementById("back").onclick = function () {
+  go(view === "v-film" ? "v-grid" : "v-grids");
+};
+
+document.getElementById("add-grid").onclick = function () {
+  DB.grids.push({name: DB.grids.length + 1 + "번", films: []});
+  at.grid = DB.grids.length - 1;
+  save(); go("v-grid");
+};
+
+document.getElementById("grid-name").oninput = function () {
+  grid().name = this.value;
+  document.getElementById("title").textContent = this.value || "그리드";
+  document.getElementById("grid-json").value = gridJSON();
+  save();
+};
+
+document.getElementById("add-film").onclick = function () {
+  grid().films.push({n: 2, r: 0, c: 0, s: "◣"});
+  at.film = grid().films.length - 1;
+  save(); go("v-film");
+};
+
+document.getElementById("del-film").onclick = function () {
+  grid().films.splice(at.film, 1);
+  at.film = -1;
+  save(); go("v-grid");
+};
+
+document.getElementById("del-grid").onclick = function () {
+  if (DB.grids.length <= 1) { toast("마지막 그리드는 못 지운다"); return; }
+  DB.grids.splice(at.grid, 1);
+  at.grid = -1;
+  save(); go("v-grids");
+};
+
+document.getElementById("copy-all").onclick = function () {
+  copy(allJSON(), "전부 복사했다");
+};
+document.getElementById("copy-grid").onclick = function () {
+  copy(gridJSON(), "이 그리드를 복사했다");
+};
+document.getElementById("all-json").onclick = function () {
+  copy(allJSON(), "전부 복사했다");
+};
+document.getElementById("grid-json").onclick = function () {
+  copy(gridJSON(), "이 그리드를 복사했다");
+};
+
+document.getElementById("wipe").onclick = function () {
+  if (!confirm("그리드를 전부 지운다. 되돌릴 수 없다.")) return;
+  DB = {grids: [{name: "1번", films: []}]};
+  at = {grid: -1, film: -1};
+  save(); go("v-grids");
+};
+
+/* 뒤로 가기 단추(안드로이드)도 화면 되돌리기로 쓴다 */
+addEventListener("popstate", function () {
+  if (view === "v-film") { go("v-grid"); history.pushState(null, ""); }
+  else if (view === "v-grid") { go("v-grids"); history.pushState(null, ""); }
+});
+history.pushState(null, "");
+
+load();
+go("v-grids");
+</script>
+</body>
+</html>
