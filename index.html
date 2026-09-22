@@ -301,8 +301,11 @@ function cellSVG(mask) {
   if (!mask) return "";
   var d = "";
   [N, E, S, W].forEach(function (b) { if (mask & b) d += WEDGE[b] + " "; });
-  return '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="' +
-         d.trim() + '"/></svg>';
+  /* preserveAspectRatio="none" — 칸이 딱 정사각형이 아닐 때도 **꽉 채운다.**
+     안 그러면 비율을 지키느라 위아래에 실낱만 한 빈 줄이 남아, ■ 인데도
+     칸 끝이 안 칠해진 것처럼 보인다 */
+  return '<svg viewBox="0 0 100 100" preserveAspectRatio="none" ' +
+         'aria-hidden="true"><path d="' + d.trim() + '"/></svg>';
 }
 
 /* 판 하나를 채운다. mark(i) 가 돌려주는 글자를 칸 class 에 얹는다 */
