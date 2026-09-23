@@ -710,7 +710,8 @@ body{
 
   /* 평면도 — 벽은 어둡고 길은 종이다. 브라운관과 같은 종이라야
      「저 골목이 이 판의 어딘가」로 읽힌다 */
-  .maze{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);
+  .maze{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    display:grid;gap:1px;background:var(--line);border:1px solid var(--line);
     border-radius:var(--r-2);padding:1px;overflow:hidden;flex:none}
   .maze .px{background:var(--ink-800);position:relative}
   .maze .px.way{background:var(--paper);cursor:pointer}
@@ -721,6 +722,24 @@ body{
   .maze .px.wrong{background:var(--red)}
   .maze .px svg{position:absolute;inset:0;width:100%;height:100%}
   .maze .px svg polygon{fill:var(--gold)}
+  /* 평면도도 브라운관 안에 든다. 유리 반사는 평면도 위로 덮는다 */
+  .map .ys-pane::before{z-index:2}
+
+  /* ── 로컬 부품 ─────────────────────────────────────────────
+     .rec   녹화 표시 — 도는 동안 붉은 점이 깜박인다. 서 있을 때는 흐리다
+     .cam   CCTV 실루엣 — 브라운관 오른쪽 위 */
+  .rec,.cam{position:absolute;z-index:4;pointer-events:none}
+  .rec{top:11%;left:12%;display:flex;align-items:center;gap:.35em;
+    font:700 clamp(11px,4.2cqw,16px)/1 ui-monospace,Menlo,Consolas,monospace;
+    letter-spacing:.08em;color:var(--red);opacity:.35}
+  .rec i{width:.72em;height:.72em;border-radius:50%;background:var(--red)}
+  .live .rec{opacity:1}
+  .live .rec i{animation:rec 1s steps(1) infinite}
+  @keyframes rec{50%{opacity:0}}
+  .cam{top:9%;right:10%;width:13%;fill:#141210;opacity:.72}
+  .cam svg{display:block;width:100%}
+  .ys-shade{container-type:inline-size}
+
   /* 시작 전에는 시계 자리만 잡아 둔다. 지워 버리면 아래가 위로 뛴다 */
   .hush{visibility:hidden}
 </style>
@@ -734,7 +753,7 @@ body{
   <div class="ys-lamps thin ys-rail" id="clock"></div>
   <div class="row">
     <div class="ys-shades tube" id="tube"></div>
-    <div class="maze" id="maze"></div>
+    <div class="ys-shades tube map" id="map"><div class="maze" id="maze"></div></div>
   </div>
   <div class="ys-lamps short" id="score"></div>
 </div>
@@ -1428,6 +1447,11 @@ var YS = (function () {
   var clock = document.getElementById("clock");
   var tube = document.getElementById("tube");
   var maze = document.getElementById("maze");
+  var map = document.getElementById("map");
+  var INNER = .8;              /* 평면도는 브라운관의 이만큼 — 둥근 귀가 안 먹는다 */
+  var CAM = '<div class="cam"><svg viewBox="0 0 24 20"><polygon points="1,6 15,2 ' +
+    '17,8 3,12"/><path d="M11 9.5 L12 14.5 H20" fill="none" stroke="#141210" ' +
+    'stroke-width="2"/><rect x="20" y="10" width="3" height="9" rx="1"/></svg></div>';
   var cuts = document.getElementById("cuts");
   var lamps = [], el = YS.el;
 
@@ -1454,21 +1478,14 @@ var YS = (function () {
     cuts.innerHTML =
       '<clipPath id="' + id + '" clipPathUnits="objectBoundingBox">' +
       '<path d="' + YS.bow(wide, wide) + '"/></clipPath>';
-    tube.innerHTML = "";
-    var box = el("div", "ys-shade");
-    box.style.cssText = "width:" + wide + "px;height:" + wide + "px";
-    box.innerHTML =
-      '<div class="ys-pane" style="width:' + wide + 'px;height:' + wide +
-        'px;transform:translate(-50%,-50%);clip-path:url(#' + id + ');' +
-        '-webkit-clip-path:url(#' + id + ')"></div>' +
-      '<svg style="width:' + wide + 'px;height:' + wide + 'px;transform:' +
-        'translate(-50%,-50%)" viewBox="0 0 1 1" preserveAspectRatio="none">' +
-        '<path d="' + YS.bow(wide, wide) + '"/></svg>';
-    tube.appendChild(box);
-    pane = box.querySelector(".ys-pane");
+    pane = crt(tube, id);
+    tube.firstChild.insertAdjacentHTML("beforeend",
+      '<div class="rec"><i></i>REC</div>' + CAM);
+    crt(map, id).appendChild(maze);
 
-    maze.style.cssText = "width:" + wide + "px;height:" + wide + "px;" +
-      "grid-template-columns:repeat(" + (S.w || 1) + ",1fr)";
+    var inner = Math.round(wide * INNER);
+    maze.style.width = maze.style.height = inner + "px";
+    maze.style.gridTemplateColumns = "repeat(" + (S.w || 1) + ",1fr)";
     maze.innerHTML = "";
     for (var i = 0; i < S.w * S.h; i++) {
       var px = el("div", "px" + (S.rows[(i / S.w) | 0][i % S.w] === "_"
@@ -1479,6 +1496,22 @@ var YS = (function () {
 
     lamps = YS.lamps(document.getElementById("score"), S.goal);
     drawn = "";
+  }
+
+  /* 브라운관 한 대 — 잘린 유리판을 돌려준다 */
+  function crt(host, id) {
+    host.innerHTML = "";
+    var box = el("div", "ys-shade");
+    box.style.cssText = "width:" + wide + "px;height:" + wide + "px";
+    box.innerHTML =
+      '<div class="ys-pane" style="width:' + wide + 'px;height:' + wide +
+        'px;transform:translate(-50%,-50%);clip-path:url(#' + id + ');' +
+        '-webkit-clip-path:url(#' + id + ')"></div>' +
+      '<svg style="width:' + wide + 'px;height:' + wide + 'px;transform:' +
+        'translate(-50%,-50%)" viewBox="0 0 1 1" preserveAspectRatio="none">' +
+        '<path d="' + YS.bow(wide, wide) + '"/></svg>';
+    host.appendChild(box);
+    return box.querySelector(".ys-pane");
   }
 
   /* ── 골목 그리기 ───────────────────────────────────────────
@@ -1535,6 +1568,8 @@ var YS = (function () {
     var now = S.round + "|" + JSON.stringify(S.view || []);
     if (pane && now !== drawn) { drawn = now; look(S.view || []); }
     tube.classList.toggle("bad", burnt);
+    tube.classList.toggle("live", live && !burnt && !done);
+    map.classList.toggle("bad", burnt);
     maze.classList.toggle("bad", burnt);
     maze.classList.toggle("cool", !live || !!told || done);
 
@@ -1570,14 +1605,15 @@ var YS = (function () {
 
   /* ── 손 ────────────────────────────────────────────────────── */
   maze.addEventListener("pointerdown", function (e) {
-    if (!S || S.cleared_at || S.burn || S.told) return;
-    if (!S.t0) { YS.post("down", {b: -1}); return; }   /* 아무 데나 = 시작 */
+    if (!S || !S.t0 || S.cleared_at || S.burn || S.told) return;
     var px = e.target.closest(".px");
     if (px && px.classList.contains("way")) YS.post("down", {b: +px.dataset.i});
   });
-  /* 시작 전에는 브라운관을 눌러도 열린다 — 그쪽이 눈에 먼저 든다 */
-  tube.addEventListener("pointerdown", function () {
-    if (S && !S.t0 && !S.burn) YS.post("down", {b: -1});
+  /* 시작 전에는 어느 브라운관을 눌러도 열린다 */
+  [tube, map].forEach(function (b) {
+    b.addEventListener("pointerdown", function () {
+      if (S && !S.t0 && !S.burn) YS.post("down", {b: -1});
+    });
   });
   window.addEventListener("resize", function () { built = -1; });
 
