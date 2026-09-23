@@ -92,6 +92,9 @@ h2:first-child{margin-top:0}
 .board.tap .px{cursor:pointer}
 .board .px.dim svg path{fill:var(--faint)}
 .board .px.hot svg path{fill:var(--gold)}
+/* 오답 필름이 덧칠한 데 — 잘라 내야 할 몫이다 */
+.board .px svg .cut path{fill:var(--red)}
+.board .px.dim svg .cut path{fill:var(--red)}
 /* 아직 안 칠한 칸 — 눌러도 되는 데가 어디인지 보인다 */
 .board .px.ok::after{content:"";position:absolute;inset:0;border-radius:3px;
   border:1px dashed var(--line-2);pointer-events:none}
@@ -105,6 +108,7 @@ h2:first-child{margin-top:0}
 .mini div::before{content:"";display:block;padding-top:100%}
 .mini svg{position:absolute;inset:0;display:block;width:100%;height:100%}
 .mini svg path{fill:var(--text)}
+.mini svg .cut path{fill:var(--red)}
 
 /* ── 줄 목록 ─────────────────────────────────────────────────── */
 .item{
@@ -191,7 +195,12 @@ textarea{
   <!-- ── 2. 그리드 하나 ───────────────────────────────────────── -->
   <section id="v-grid">
     <h2>겹친 모습</h2>
+    <div class="row" id="see" style="margin-bottom:10px">
+      <button class="btn" data-see="good">정답만</button>
+      <button class="btn" data-see="cut">오답까지</button>
+    </div>
     <div class="board big" id="grid-board"></div>
+    <p class="note" id="see-say"></p>
 
     <h2>이름</h2>
     <input type="text" id="grid-name" placeholder="그리드 이름">
@@ -224,6 +233,13 @@ textarea{
 
     <h2>이름</h2>
     <input type="text" id="film-name" placeholder="필름 이름">
+
+    <h2>오답 필름</h2>
+    <p class="note">완성 그림에 안 들어가는 필름이다. 겹쳐 보면 이 필름이
+      덧칠한 데가 <b style="color:var(--red)">붉게</b> 나온다.</p>
+    <div class="row" style="margin-top:8px">
+      <button class="btn wide" id="bad">오답 필름으로 두기</button>
+    </div>
 
     <h2>그리드에 올려 보기</h2>
     <p class="note">이 필름이 새로 칠하는 데만
@@ -302,10 +318,23 @@ function bakeFilm(f) {
   return out;
 }
 
-/* 필름 여럿 → 16칸 */
-function bakeAll(films) {
+/* 필름 여럿 → 16칸. good 이면 오답 필름은 빼고 겹친다 */
+function bakeAll(films, good) {
   var out = blank();
-  (films || []).forEach(function (f) { stack(out, bakeFilm(f)); });
+  (films || []).forEach(function (f) {
+    if (good && f.bad) { return; }
+    stack(out, bakeFilm(f));
+  });
+  return out;
+}
+
+/* 덧칠한 몫 — 온통 겹친 것에서 정답만 겹친 것을 뺀다. 조각이 여덟이라
+   빼기도 조각별로 그냥 떨어진다 */
+function minus(all, good) {
+  var out = blank();
+  for (var i = 0; i < G * G; i++) {
+    out[i] = val(OUT(all[i]) & ~OUT(good[i]), INN(all[i]) & ~INN(good[i]));
+  }
   return out;
 }
 
@@ -336,7 +365,8 @@ function wrap(inner) {
          'aria-hidden="true">' + inner + "</svg>";
 }
 
-function cellSVG(v) {
+/* 칸 값 하나 → <svg> 속. 껍데기는 씌우지 않는다 */
+function paths(v) {
   var out = OUT(v), inn = INN(v);
   if (!out) return "";
 
@@ -344,7 +374,7 @@ function cellSVG(v) {
   if (out === inn) {
     var d = "";
     BITS.forEach(function (b) { if (out & b) d += WEDGE[b] + " "; });
-    return wrap('<path d="' + d.trim() + '"/>');
+    return '<path d="' + d.trim() + '"/>';
   }
 
   /* 구멍이 있다. 바깥 조각은 「쐐기에서 부채꼴을 도려낸 것」이라
@@ -355,22 +385,31 @@ function cellSVG(v) {
     if (out & b) a += WEDGE[b] + " " + SECTOR[b] + " ";
     if (inn & b) b2 += SECTOR[b] + " ";
   });
-  return wrap('<path fill-rule="evenodd" d="' + a.trim() + '"/>' +
-              (b2 ? '<path d="' + b2.trim() + '"/>' : ""));
+  return '<path fill-rule="evenodd" d="' + a.trim() + '"/>' +
+         (b2 ? '<path d="' + b2.trim() + '"/>' : "");
 }
 
-function paint(el, cells, mark) {
+/* cut 은 붉게 나오는 몫이다. 조각이 겹치지 않으니 그냥 나란히 그린다 */
+function cellSVG(v, cut) {
+  var a = paths(v), b = cut ? paths(cut) : "";
+  if (!a && !b) return "";
+  return wrap(a + (b ? '<g class="cut">' + b + "</g>" : ""));
+}
+
+function paint(el, cells, mark, cut) {
   var html = "";
   for (var i = 0; i < G * G; i++) {
     html += '<div class="px ' + (mark ? mark(i) : "") + '" data-i="' + i +
-            '">' + cellSVG(cells[i]) + "</div>";
+            '">' + cellSVG(cells[i], cut && cut[i]) + "</div>";
   }
   el.innerHTML = html;
 }
 
-function miniHTML(cells) {
+function miniHTML(cells, cut) {
   var html = '<div class="mini">';
-  for (var i = 0; i < G * G; i++) html += "<div>" + cellSVG(cells[i]) + "</div>";
+  for (var i = 0; i < G * G; i++) {
+    html += "<div>" + cellSVG(cells[i], cut && cut[i]) + "</div>";
+  }
   return html + "</div>";
 }
 
@@ -380,9 +419,7 @@ function shapeSVG(k) {
     return '<svg viewBox="0 0 100 100"><rect x="8" y="8" width="84" ' +
            'height="84" rx="8"/></svg>';
   }
-  return '<svg viewBox="0 0 100 100">' +
-         cellSVG(cellVal(k)).replace(/^<svg[^>]*>|<\/svg>$/g, "") +
-         "</svg>";
+  return '<svg viewBox="0 0 100 100">' + paths(cellVal(k)) + "</svg>";
 }
 
 /* ── 담아 두기 ───────────────────────────────────────────────── */
@@ -390,6 +427,7 @@ var KEY = "film.book.v1";
 var DB = {grids: []};
 var at = {grid: -1, film: -1};
 var ink = "■";                              /* 지금 쥔 잉크 */
+var see = "good";                           /* 겹친 모습 — good · cut */
 
 /* 예전 꼴 — 필름이 「자리 하나에 키워 구운 도형」이던 시절.
    칸마다 무엇이 찍혔는지만 셈해서 옮긴다 */
@@ -417,7 +455,7 @@ function moveIn(f) {
   var cells = blankCells();
   var parts = (f && f.parts) || [f];
   parts.forEach(function (p) { if (p && p.s) pour(cells, p); });
-  return {name: (f && f.name) || "", cells: cells};
+  return {name: (f && f.name) || "", bad: !!(f && f.bad), cells: cells};
 }
 
 function load() {
@@ -462,6 +500,7 @@ function tidy(g) {
     films: g.films.map(function (f) {
       var o = {};
       if (f.name) o.name = f.name;
+      if (f.bad) o.bad = true;
       o.rows = rows(f);
       return o;
     })
@@ -524,10 +563,12 @@ function drawGrids() {
     box.innerHTML = '<div class="empty">그리드가 없다</div>';
   } else {
     box.innerHTML = DB.grids.map(function (g, k) {
+      var bad = g.films.filter(function (f) { return f.bad; }).length;
       return '<div class="item" data-k="' + k + '">' +
-        miniHTML(bakeAll(g.films)) +
+        miniHTML(bakeAll(g.films, true)) +
         '<div class="who"><b>' + esc(g.name || (k + 1) + "번") + "</b>" +
-        "<span>필름 " + g.films.length + "장</span></div>" +
+        "<span>필름 " + g.films.length + "장" +
+        (bad ? " · 그중 오답 " + bad : "") + "</span></div>" +
         '<button class="kill" title="지운다">✕</button></div>';
     }).join("");
     hook(box, function (k) { at.grid = k; go("v-grid"); },
@@ -543,19 +584,33 @@ function drawGrids() {
 function drawGrid() {
   var g = grid();
   document.getElementById("title").textContent = g.name || "그리드";
-  paint(document.getElementById("grid-board"), bakeAll(g.films));
   document.getElementById("grid-name").value = g.name || "";
   document.getElementById("film-count").textContent = g.films.length + "장";
+
+  /* 겹친 모습 — 오답 필름을 빼고 보거나, 넣고 덧칠한 데를 붉게 본다 */
+  var good = bakeAll(g.films, true);
+  var bad = g.films.filter(function (f) { return f.bad; }).length;
+  var cut = see === "cut" ? minus(bakeAll(g.films), good) : null;
+  paint(document.getElementById("grid-board"), good, null, cut);
+  document.querySelectorAll("#see button").forEach(function (el) {
+    el.classList.toggle("on", el.dataset.see === see);
+  });
+  document.getElementById("see-say").textContent = !bad
+    ? "오답 필름이 없다"
+    : (see === "cut" ? "오답 필름이 덧칠한 데가 붉다" : "오답 필름 " + bad +
+       "장을 뺀 완성 그림이다");
 
   var box = document.getElementById("film-list");
   if (!g.films.length) {
     box.innerHTML = '<div class="empty">필름이 없다</div>';
   } else {
     box.innerHTML = g.films.map(function (f, k) {
+      var mine = bakeFilm(f);
       return '<div class="item" data-k="' + k + '">' +
-        miniHTML(bakeFilm(f)) +
+        (f.bad ? miniHTML(blank(), mine) : miniHTML(mine)) +
         '<div class="who"><b>' + esc(filmName(f, k)) + "</b>" +
-        "<span>도형 " + inked(f) + "개</span></div>" +
+        "<span>도형 " + inked(f) + "개" +
+        (f.bad ? " · 오답 필름" : "") + "</span></div>" +
         '<button class="kill" title="지운다">✕</button></div>';
     }).join("");
     hook(box, function (k) { at.film = k; go("v-film"); },
@@ -596,13 +651,26 @@ function drawFilm() {
     };
   });
 
-  /* 그리드에 올려 보기 — 이 필름이 새로 칠하는 데만 금빛 */
+  /* 오답 필름인가 */
+  document.getElementById("bad").classList.toggle("on", !!f.bad);
+
+  /* 그리드에 올려 보기 — 이 필름이 새로 칠하는 데만 금빛.
+     오답 필름이면 그 몫이 곧 잘라 낼 데라 붉게 나온다 */
   var rest = bakeAll(g.films.filter(function (x, k) { return k !== at.film; }));
   var whole = stack(rest.slice(), mine);
-  paint(document.getElementById("film-with"), whole, function (i) {
-    if (!whole[i]) return "";
-    return (mine[i] & ~rest[i]) ? "hot" : "dim";
-  });
+  var add = blank();
+  for (var i = 0; i < G * G; i++) {
+    add[i] = val(OUT(mine[i]) & ~OUT(rest[i]), INN(mine[i]) & ~INN(rest[i]));
+  }
+  if (f.bad) {
+    paint(document.getElementById("film-with"), rest,
+          function (j) { return rest[j] ? "dim" : ""; }, add);
+  } else {
+    paint(document.getElementById("film-with"), whole, function (j) {
+      if (!whole[j]) return "";
+      return add[j] ? "hot" : "dim";
+    });
+  }
 }
 
 /* 줄 하나에 「들어가기」와 「지우기」를 매단다 */
@@ -646,8 +714,18 @@ document.getElementById("grid-name").oninput = function () {
   save();
 };
 
+document.querySelectorAll("#see button").forEach(function (el) {
+  el.onclick = function () { see = el.dataset.see; draw(); };
+});
+
+document.getElementById("bad").onclick = function () {
+  var f = film();
+  f.bad = !f.bad;
+  save(); draw();
+};
+
 document.getElementById("add-film").onclick = function () {
-  grid().films.push({name: "", cells: blankCells()});
+  grid().films.push({name: "", bad: false, cells: blankCells()});
   at.film = grid().films.length - 1;
   save(); go("v-film");
 };
