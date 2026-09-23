@@ -368,7 +368,8 @@ function wrap(inner) {
 /* 칸 값 하나 → <svg> 속. 껍데기는 씌우지 않는다 */
 function paths(v) {
   var out = OUT(v), inn = INN(v);
-  if (!out) return "";
+  /* 안쪽만 있는 칸도 있다 — 남이 뚫어 둔 구멍을 메우는 몫이 그렇다 */
+  if (!out && !inn) return "";
 
   /* 구멍이 없는 흔한 경우 — 쐐기를 그대로 그린다 */
   if (out === inn) {
@@ -385,7 +386,7 @@ function paths(v) {
     if (out & b) a += WEDGE[b] + " " + SECTOR[b] + " ";
     if (inn & b) b2 += SECTOR[b] + " ";
   });
-  return '<path fill-rule="evenodd" d="' + a.trim() + '"/>' +
+  return (a ? '<path fill-rule="evenodd" d="' + a.trim() + '"/>' : "") +
          (b2 ? '<path d="' + b2.trim() + '"/>' : "");
 }
 
