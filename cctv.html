@@ -747,7 +747,9 @@ body{
   .maze.off{visibility:hidden}
   .live .rec i{animation:rec 1s steps(1) infinite}
   @keyframes rec{50%{opacity:0}}
-  .cam{top:9%;right:10%;width:13%;color:#141210;opacity:.72}
+  /* REC 와 같은 빨강. 검은 벽에 걸쳐도 보이게 종이색으로 한 겹 두른다 */
+  .cam{top:9%;right:10%;width:13%;color:var(--red);
+    filter:drop-shadow(0 0 1px var(--paper)) drop-shadow(0 0 1px var(--paper))}
   .cam svg{display:block;width:100%;fill:currentColor}
   .map.ask .ys-shade > svg path{stroke:var(--gold-lit);stroke-width:3}
   .map.ask .ys-shade > svg{animation:ask 1.6s ease-in-out infinite}
