@@ -734,7 +734,7 @@ body{
 
   /* ── 로컬 부품 ─────────────────────────────────────────────
      .rec   녹화 표시 — 골목이 비칠 때만 뜨고, 도는 동안 붉은 점이 깜박인다
-     .cam   CCTV 실루엣 — 브라운관 오른쪽 위
+     .cam   CCTV 실루엣 — 브라운관 오른쪽 위. REC 처럼 골목이 비칠 때만 뜬다
      .tap   「여기를 누른다」 — 첫 문제에서만 손가락이 평면도를 두드린다
      .map.ask  누를 차례 — 오른쪽 브라운관 테두리가 금빛으로 숨 쉰다 */
   .rec,.cam{position:absolute;z-index:4;pointer-events:none}
@@ -742,7 +742,8 @@ body{
     font:700 clamp(11px,4.2cqw,16px)/1 ui-monospace,Menlo,Consolas,monospace;
     letter-spacing:.08em;color:var(--red);visibility:hidden}
   .rec i{width:.72em;height:.72em;border-radius:50%;background:var(--red)}
-  .seen .rec{visibility:visible}
+  .cam{visibility:hidden}
+  .seen .rec,.seen .cam{visibility:visible}
   /* 시작 전에는 평면도를 안 띄운다 — 빈 브라운관이다 */
   .maze.off{visibility:hidden}
   .live .rec i{animation:rec 1s steps(1) infinite}
