@@ -717,27 +717,54 @@ body{
   .maze .px.way{background:var(--paper);cursor:pointer}
   .maze.bad .px.way{background:var(--paper-bad)}
   .maze.cool .px.way{cursor:default}
-  /* 짚고 난 뒤 — 맞는 자리는 죄 녹색, 잘못 짚은 자리는 적색 */
-  .maze .px.right{background:var(--green)}
-  .maze .px.wrong{background:var(--red)}
-  .maze .px svg{position:absolute;inset:0;width:100%;height:100%}
-  .maze .px svg polygon{fill:var(--gold)}
-  /* 평면도도 브라운관 안에 든다. 유리 반사는 평면도 위로 덮는다 */
-  .map .ys-pane::before{z-index:2}
+  /* 짚고 난 뒤 — 출제한 자리에 CCTV 가 서고, 그 CCTV 가 비추는 길(선 칸
+     포함)이 녹색으로 켜진다. 잘못 짚은 자리에는 붉은 CCTV 만 선다 */
+  .maze .px.lit{background:var(--green-lit)}
+  .maze .px svg{position:absolute;inset:4%;width:92%;height:92%;
+    fill:currentColor;overflow:visible}
+  .maze .px.cam-at{color:#141210}
+  .maze .px.cam-ok{color:color-mix(in srgb,var(--green) 60%,#000)}
+  .maze .px.cam-no{color:var(--red)}
+  /* 서 · 북 · 동 · 남 — 그림은 서쪽을 본다 */
+  .maze .px.d1 svg{transform:rotate(90deg)}
+  .maze .px.d2 svg{transform:scaleX(-1)}
+  .maze .px.d3 svg{transform:rotate(-90deg)}
+  /* 평면도도 브라운관 안에 든다. 유리 반사는 평면도 **밑**에 둔다 —
+     덮으면 짚은 자리의 CCTV 가 바래 보인다 */
 
   /* ── 로컬 부품 ─────────────────────────────────────────────
-     .rec   녹화 표시 — 도는 동안 붉은 점이 깜박인다. 서 있을 때는 흐리다
-     .cam   CCTV 실루엣 — 브라운관 오른쪽 위 */
+     .rec   녹화 표시 — 골목이 비칠 때만 뜨고, 도는 동안 붉은 점이 깜박인다
+     .cam   CCTV 실루엣 — 브라운관 오른쪽 위
+     .tap   「여기를 누른다」 — 첫 문제에서만 손가락이 평면도를 두드린다
+     .map.ask  누를 차례 — 오른쪽 브라운관 테두리가 금빛으로 숨 쉰다 */
   .rec,.cam{position:absolute;z-index:4;pointer-events:none}
   .rec{top:11%;left:12%;display:flex;align-items:center;gap:.35em;
     font:700 clamp(11px,4.2cqw,16px)/1 ui-monospace,Menlo,Consolas,monospace;
-    letter-spacing:.08em;color:var(--red);opacity:.35}
+    letter-spacing:.08em;color:var(--red);visibility:hidden}
   .rec i{width:.72em;height:.72em;border-radius:50%;background:var(--red)}
-  .live .rec{opacity:1}
+  .seen .rec{visibility:visible}
+  /* 시작 전에는 평면도를 안 띄운다 — 빈 브라운관이다 */
+  .maze.off{visibility:hidden}
   .live .rec i{animation:rec 1s steps(1) infinite}
   @keyframes rec{50%{opacity:0}}
-  .cam{top:9%;right:10%;width:13%;fill:#141210;opacity:.72}
-  .cam svg{display:block;width:100%}
+  .cam{top:9%;right:10%;width:13%;color:#141210;opacity:.72}
+  .cam svg{display:block;width:100%;fill:currentColor}
+  .map.ask .ys-shade > svg path{stroke:var(--gold-lit);stroke-width:3}
+  .map.ask .ys-shade > svg{animation:ask 1.6s ease-in-out infinite}
+  @keyframes ask{
+    0%,100%{filter:drop-shadow(0 0 2px color-mix(in srgb,var(--gold) 50%,transparent))}
+    50%{filter:drop-shadow(0 0 12px var(--gold-lit))}}
+  .tap{position:absolute;z-index:5;pointer-events:none;width:15%;
+    transform:translate(-30%,-4%);display:none}
+  .tap.on{display:block}
+  .tap svg{display:block;width:100%;overflow:visible;
+    animation:tap 1.2s ease-in-out infinite}
+  .tap svg path{fill:#fff;stroke:#141210;stroke-width:1.2;stroke-linejoin:round}
+  .tap svg circle{fill:none;stroke:var(--gold-lit);stroke-width:1.4;
+    transform-origin:8px 2px;animation:ripple 1.2s ease-out infinite}
+  @keyframes tap{0%,100%{transform:translateY(0)}40%{transform:translateY(8%)}}
+  @keyframes ripple{0%,30%{transform:scale(.2);opacity:0}
+    45%{opacity:1}100%{transform:scale(1.6);opacity:0}}
   .ys-shade{container-type:inline-size}
 
   /* 시작 전에는 시계 자리만 잡아 둔다. 지워 버리면 아래가 위로 뛴다 */
@@ -1449,9 +1476,15 @@ var YS = (function () {
   var maze = document.getElementById("maze");
   var map = document.getElementById("map");
   var INNER = .8;              /* 평면도는 브라운관의 이만큼 — 둥근 귀가 안 먹는다 */
-  var CAM = '<div class="cam"><svg viewBox="0 0 24 20"><polygon points="1,6 15,2 ' +
-    '17,8 3,12"/><path d="M11 9.5 L12 14.5 H20" fill="none" stroke="#141210" ' +
-    'stroke-width="2"/><rect x="20" y="10" width="3" height="9" rx="1"/></svg></div>';
+  /* CCTV 실루엣 — 서쪽을 본다. 색은 둘레 글자색을 따른다 */
+  var CAM = '<svg viewBox="0 0 24 20"><polygon points="1,6 15,2 17,8 3,12"/>' +
+    '<path d="M11 9.5 L12 14.5 H20" fill="none" stroke="currentColor" ' +
+    'stroke-width="2"/><rect x="20" y="10" width="3" height="9" rx="1"/></svg>';
+  /* 손가락 — 끝이 (8, 2) 에 있다 */
+  var TAP = '<svg viewBox="0 0 24 28"><circle cx="8" cy="2" r="6"/>' +
+    '<path d="M6 3a2 2 0 0 1 4 0v8l1-.2a2 2 0 0 1 3 1.4 2 2 0 0 1 3 1 2 2 0 0 1 ' +
+    '3 1.5V20a7 7 0 0 1-7 7h-2a7 7 0 0 1-6-3.5L2 19a2 2 0 0 1 3-2.4l1 1.2Z"/></svg>';
+  var hint = null, tapped = false;
   var cuts = document.getElementById("cuts");
   var lamps = [], el = YS.el;
 
@@ -1480,8 +1513,12 @@ var YS = (function () {
       '<path d="' + YS.bow(wide, wide) + '"/></clipPath>';
     pane = crt(tube, id);
     tube.firstChild.insertAdjacentHTML("beforeend",
-      '<div class="rec"><i></i>REC</div>' + CAM);
+      '<div class="rec"><i></i>REC</div><div class="cam">' + CAM + '</div>');
     crt(map, id).appendChild(maze);
+    hint = el("div", "tap");
+    hint.innerHTML = TAP;
+    map.firstChild.appendChild(hint);
+    tapped = false;
 
     var inner = Math.round(wide * INNER);
     maze.style.width = maze.style.height = inner + "px";
@@ -1547,8 +1584,21 @@ var YS = (function () {
   }
 
   /* 서 · 북 · 동 · 남 */
-  var ARROW = ["2,5 7,1.5 7,8.5", "5,2 1.5,7 8.5,7",
-               "8,5 3,1.5 3,8.5", "5,8 1.5,3 8.5,3"];
+  var DIRS = [[0, -1], [-1, 0], [0, 1], [1, 0]];
+
+  /* 첫 문제의 손가락은 판 한가운데에 가장 가까운 길 칸을 두드린다 */
+  function place() {
+    var best = null, cr = (S.h - 1) / 2, cc = (S.w - 1) / 2;
+    for (var r = 0; r < S.h; r++) for (var c = 0; c < S.w; c++) {
+      if (S.rows[r][c] !== "_") continue;
+      var d = (r - cr) * (r - cr) + (c - cc) * (c - cc);
+      if (!best || d < best[0]) best = [d, r, c];
+    }
+    if (!best) return;
+    var cell = wide * INNER / S.w, o = wide * (1 - INNER) / 2;
+    hint.style.left = (o + (best[2] + .5) * cell) + "px";
+    hint.style.top = (o + (best[1] + .5) * cell) + "px";
+  }
 
   /* ── 그리기 ────────────────────────────────────────────────── */
   function draw(t) {
@@ -1569,27 +1619,41 @@ var YS = (function () {
     if (pane && now !== drawn) { drawn = now; look(S.view || []); }
     tube.classList.toggle("bad", burnt);
     tube.classList.toggle("live", live && !burnt && !done);
+    tube.classList.toggle("seen", !!(S.view && S.view.length));
+    maze.classList.toggle("off", !S.w);
     map.classList.toggle("bad", burnt);
     maze.classList.toggle("bad", burnt);
-    maze.classList.toggle("cool", !live || !!told || done);
+    var ask = live && !told && !done && !burnt;
+    maze.classList.toggle("cool", !ask);
+    map.classList.toggle("ask", ask);
+    if (hint) {
+      if (ask && !tapped && !hint.classList.contains("on")) place();
+      hint.classList.toggle("on", ask && !tapped);
+    }
 
-    /* 짚고 난 뒤 — 맞는 자리는 죄 녹색, 잘못 짚은 자리는 적색,
-       출제한 자리에는 화살표가 선다 */
+    /* 짚고 난 뒤 — 출제한 자리에 CCTV 가 서서 제가 비추는 길을 녹색으로
+       켠다. 맞혔으면 그 CCTV 가 녹색, 틀렸으면 짚은 자리에 붉은 CCTV */
+    var lit = {}, at = told ? told.at[0] * S.w + told.at[1] : -1;
+    if (told) {
+      var dd = DIRS[told.d];
+      for (var k = 0; k < (S.view || []).length; k++)
+        lit[(told.at[0] + dd[0] * k) * S.w + told.at[1] + dd[1] * k] = 1;
+    }
+    var shot = told && told.shot ? told.shot[0] * S.w + told.shot[1] : -1;
     var kids = maze.children;
     for (var i = 0; i < kids.length; i++) {
-      var r = (i / S.w) | 0, c = i % S.w, cls = "px";
+      var r = (i / S.w) | 0, c = i % S.w, cls = "px", icon = "";
       if (S.rows[r] && S.rows[r][c] === "_") cls += " way";
-      if (told) {
-        if (told.same.some(function (p) { return p[0] === r && p[1] === c; }))
-          cls += " right";
-        else if (told.shot && told.shot[0] === r && told.shot[1] === c)
-          cls += " wrong";
+      if (lit[i]) cls += " lit";
+      if (i === at) {
+        cls += (told.ok ? " cam-ok" : " cam-at") + " d" + told.d;
+        icon = CAM;
+      } else if (i === shot) {
+        cls += " cam-no";          /* 방향은 모른다 — 서쪽을 보게 둔다 */
+        icon = CAM;
       }
       kids[i].className = cls;
-      var arrow = told && told.at[0] === r && told.at[1] === c;
-      var want = arrow ? '<svg viewBox="0 0 10 10"><polygon points="' +
-        ARROW[told.d] + '"/></svg>' : "";
-      if (kids[i].innerHTML !== want) kids[i].innerHTML = want;
+      if (kids[i].innerHTML !== icon) kids[i].innerHTML = icon;
     }
 
     /* 점수 램프. 깎이는 참에는 그만큼이 붉게 켜진다 */
@@ -1607,6 +1671,7 @@ var YS = (function () {
   maze.addEventListener("pointerdown", function (e) {
     if (!S || !S.t0 || S.cleared_at || S.burn || S.told) return;
     var px = e.target.closest(".px");
+    tapped = true;
     if (px && px.classList.contains("way")) YS.post("down", {b: +px.dataset.i});
   });
   /* 시작 전에는 어느 브라운관을 눌러도 열린다 */
