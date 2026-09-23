@@ -701,6 +701,9 @@ body{
     padding:var(--bar) var(--s-2) var(--s-4)}
   .row{flex:1;min-height:0;display:flex;align-items:center;
     justify-content:center;gap:var(--s-3)}
+  /* 세로로 긴 화면 — 브라운관을 위에 작게, 평면도를 아래에 크게 쌓는다.
+     폰에서 칸이 손가락보다 작으면 못 누른다 */
+  .tall .row{flex-direction:column}
   .tube{display:flex;width:auto}
   .tube .ys-shade{flex:none}
   .tube svg.deep{position:absolute;inset:0;width:100%;height:100%;z-index:2}
@@ -1470,9 +1473,11 @@ var YS = (function () {
   var VW = 1.5;                /* 화면이 담는 폭 — 선 칸의 좌우 벽까지 보이게 */
   var GAP = 12;                /* 브라운관과 평면도 사이 */
   var CAP = 360;               /* 아무리 넓어도 한 변이 이만큼까지 */
+  var MAP = .6;                /* 세로 화면에서 평면도가 차지하는 높이 몫 */
+  var MAPCAP = 560;            /* 세로 화면 평면도 한 변의 끝 */
   var BELOW = 96;              /* 점수 램프가 쓰는 자리 */
 
-  var S = null, built = 0, wide = 0, cid = 0, pane = null, drawn = "";
+  var S = null, built = 0, wide = 0, wmap = 0, sized = "", cid = 0, pane = null, drawn = "";
   var stage = document.getElementById("stage");
   var clock = document.getElementById("clock");
   var tube = document.getElementById("tube");
@@ -1497,16 +1502,28 @@ var YS = (function () {
   function side() {
     var css = getComputedStyle(stage);
     var pad = parseFloat(css.paddingLeft) + parseFloat(css.paddingRight);
-    var byWide = (stage.clientWidth - pad - GAP) / 2;
-    var byTall = window.innerHeight - parseFloat(css.paddingTop) -
-                 clock.offsetHeight - BELOW;
-    return Math.max(120, Math.floor(Math.min(byWide, byTall, CAP)));
+    var W = stage.clientWidth - pad;
+    var H = window.innerHeight - parseFloat(css.paddingTop) -
+            clock.offsetHeight - BELOW;
+    var tall = window.innerHeight > window.innerWidth;
+    var t, m;
+    if (tall) {
+      m = Math.min(W, (H - GAP) * MAP, MAPCAP);
+      t = Math.min(W, H - GAP - m, CAP);
+    } else {
+      t = m = Math.min((W - GAP) / 2, H, CAP);
+    }
+    return {t: Math.max(120, Math.floor(t)), m: Math.max(120, Math.floor(m)),
+            tall: tall};
   }
 
   /* ── 브라운관 한 대와 평면도 ──────────────────────────────── */
   function build() {
     built = S.round + ":" + S.w + "x" + S.h;
-    wide = side();
+    var z = side();
+    wide = z.t; wmap = z.m;
+    sized = wide + ":" + wmap;
+    stage.classList.toggle("tall", z.tall);
     YS.lamps(clock, S.ticks);
     YS.ticks.reset();
 
@@ -1514,16 +1531,16 @@ var YS = (function () {
     cuts.innerHTML =
       '<clipPath id="' + id + '" clipPathUnits="objectBoundingBox">' +
       '<path d="' + YS.bow(wide, wide) + '"/></clipPath>';
-    pane = crt(tube, id);
+    pane = crt(tube, id, wide);
     tube.firstChild.insertAdjacentHTML("beforeend",
       '<div class="rec"><i></i>REC</div><div class="cam">' + CAM + '</div>');
-    crt(map, id).appendChild(maze);
+    crt(map, id, wmap).appendChild(maze);
     hint = el("div", "tap");
     hint.innerHTML = TAP;
     map.firstChild.appendChild(hint);
     tapped = false;
 
-    var inner = Math.round(wide * INNER);
+    var inner = Math.round(wmap * INNER);
     maze.style.width = maze.style.height = inner + "px";
     maze.style.gridTemplateColumns = "repeat(" + (S.w || 1) + ",1fr)";
     maze.innerHTML = "";
@@ -1539,7 +1556,7 @@ var YS = (function () {
   }
 
   /* 브라운관 한 대 — 잘린 유리판을 돌려준다 */
-  function crt(host, id) {
+  function crt(host, id, wide) {
     host.innerHTML = "";
     var box = el("div", "ys-shade");
     box.style.cssText = "width:" + wide + "px;height:" + wide + "px";
@@ -1598,7 +1615,7 @@ var YS = (function () {
       if (!best || d < best[0]) best = [d, r, c];
     }
     if (!best) return;
-    var cell = wide * INNER / S.w, o = wide * (1 - INNER) / 2;
+    var cell = wmap * INNER / S.w, o = wmap * (1 - INNER) / 2;
     hint.style.left = (o + (best[2] + .5) * cell) + "px";
     hint.style.top = (o + (best[1] + .5) * cell) + "px";
   }
@@ -1607,7 +1624,8 @@ var YS = (function () {
   function draw(t) {
     if (!S) return;
     var key = S.round + ":" + S.w + "x" + S.h;
-    if (built !== key || (!S.t0 && wide !== side())) build();
+    var z = S.t0 ? null : side();
+    if (built !== key || (z && sized !== z.t + ":" + z.m)) build();
 
     var live = !!S.t0;
     var done = !!S.cleared_at;
