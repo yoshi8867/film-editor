@@ -46,9 +46,17 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   border-radius:var(--r-sm);padding:9px 13px;font-size:14px;color:var(--text)}
 .btn:active{background:var(--line)}
 .btn.gold{border-color:var(--gold);color:var(--gold)}
+.btn.on{background:var(--text);color:var(--ink-900);border-color:var(--text);
+  font-weight:700}
+.btn.hide,label.hide{display:none}
 
 .bar{display:flex;gap:var(--s-3);align-items:center;flex-wrap:wrap;
   margin-bottom:var(--s-4)}
+.bar .seg{display:flex;gap:0}
+.bar .seg .btn{border-radius:0}
+.bar .seg .btn:first-child{border-radius:var(--r-sm) 0 0 var(--r-sm)}
+.bar .seg .btn:last-child{border-radius:0 var(--r-sm) var(--r-sm) 0;
+  border-left:none}
 label{color:var(--dim);font-size:13px;display:flex;align-items:center;gap:6px}
 select{font:inherit;color:var(--text);background:var(--ink-700);
   border:1px solid var(--line);border-radius:var(--r-sm);padding:7px 9px}
@@ -57,6 +65,9 @@ input[type=checkbox]{accent-color:var(--gold);width:16px;height:16px;margin:0}
 h2{font-size:12px;color:var(--dim);font-weight:600;letter-spacing:.06em;
   margin:0 0 var(--s-2);padding-bottom:5px;border-bottom:1px solid var(--line)}
 .note{color:var(--faint);font-size:12px;line-height:1.7;margin:var(--s-2) 0 0}
+.note b{color:var(--dim)}
+.note.lit{color:var(--green)}
+.note.bad{color:var(--red)}
 
 .wrap{display:flex;gap:var(--s-4);flex-wrap:wrap;align-items:flex-start}
 .col{flex:1 1 300px;min-width:250px;max-width:460px}
@@ -72,8 +83,12 @@ h2{font-size:12px;color:var(--dim);font-weight:600;letter-spacing:.06em;
 .board .px::before{content:"";display:block;padding-top:100%}
 .board .px.way{background:var(--way);cursor:pointer}
 .board .px.seen{background:var(--seen)}
+/* 맞은 자리는 녹색, 틀린 자리는 적색이다 */
+.board .px.right{background:var(--green)}
+.board .px.wrong{background:var(--red)}
 .board .px svg{position:absolute;inset:0;width:100%;height:100%;display:block}
 .board .px svg polygon{fill:var(--gold)}
+.board.cool .px.way{cursor:default}
 
 /* ── 보이는 모습 ─────────────────────────────────────────────────
    천장과 바닥은 하얗고 벽면은 검정이다. 바탕을 흰색으로 깔고 벽만 얹는다 */
@@ -91,9 +106,15 @@ h2{font-size:12px;color:var(--dim);font-weight:600;letter-spacing:.06em;
 
 <main>
   <div class="bar">
+    <span class="seg">
+      <button class="btn on" id="mLook">살펴보기</button>
+      <button class="btn" id="mQuiz">퀴즈</button>
+    </span>
     <label>가로 <select id="w"></select></label>
     <label>세로 <select id="h"></select></label>
-    <button class="btn gold" id="fresh">새 미로</button>
+    <button class="btn" id="fresh">새 미로</button>
+    <button class="btn gold hide" id="again">새 문제</button>
+    <label class="only hide"><input type="checkbox" id="one"> 답이 한 곳인 문제만</label>
     <label><input type="checkbox" id="mark"> 보이는 칸</label>
     <label><input type="checkbox" id="rings"> 깊이 선</label>
   </div>
@@ -102,8 +123,7 @@ h2{font-size:12px;color:var(--dim);font-weight:600;letter-spacing:.06em;
     <div class="col">
       <h2>미로</h2>
       <div class="board" id="board"></div>
-      <p class="note">흰 칸을 탭하면 그 자리에 선다. 같은 칸을 다시 탭하면
-        <b>서 → 북 → 동 → 남</b> 으로 90도씩 돈다.</p>
+      <p class="note" id="tip"></p>
     </div>
     <div class="col">
       <h2>보이는 모습</h2>
@@ -129,21 +149,32 @@ h2{font-size:12px;color:var(--dim);font-weight:600;letter-spacing:.06em;
   function left(d) { return {dr: -d.dc, dc: d.dr}; }
 
   var VW = 1.5;     /* 화면이 담는 폭 — 선 칸의 좌우 벽까지 보이게 넓힌다 */
-  var DEEP = 12;    /* 판이 10칸을 안 넘으니 이만하면 늘 벽에 막힌다 */
+  var DEEP = 16;    /* 판이 13칸을 안 넘으니 이만하면 늘 벽에 막힌다 */
 
   var board = document.getElementById("board");
   var view = document.getElementById("view");
   var what = document.getElementById("what");
+  var tip = document.getElementById("tip");
   var selW = document.getElementById("w");
   var selH = document.getElementById("h");
   var mark = document.getElementById("mark");
   var rings = document.getElementById("rings");
+  var one = document.getElementById("one");
+  var onlyBox = document.querySelector(".only");
+  var mLook = document.getElementById("mLook");
+  var mQuiz = document.getElementById("mQuiz");
+  var again = document.getElementById("again");
 
   var W = 9, H = 9;
   var grid = [];          /* 1 이면 벽, 0 이면 길 */
-  var at = null;          /* 선 자리 [행, 열] */
+  var mode = "look";      /* look 살펴보기 · quiz 퀴즈 */
+
+  var at = null;          /* 살펴보기 — 선 자리 [행, 열] */
   var dir = 0;
   var seen = [];          /* 지금 보고 있는 칸들 */
+
+  var ask = null;         /* 퀴즈 — {r, c, dir, sign, same:[[행,열]…]} */
+  var shot = null;        /* 고른 자리 */
 
   /* ── 미로 뽑기 ────────────────────────────────────────────────
      홀수 자리만 방으로 쓰고 그 사이 벽을 허문다. 이렇게 하면 길의 폭은
@@ -180,39 +211,67 @@ h2{font-size:12px;color:var(--dim);font-weight:600;letter-spacing:.06em;
     return r < 0 || c < 0 || r >= H || c >= W || grid[r][c] === 1;
   }
 
-  /* ── 판 그리기 ───────────────────────────────────────────────── */
-  var ARROW = {
-    "서": "2,5 7,1.5 7,8.5",
-    "북": "5,2 1.5,7 8.5,7",
-    "동": "8,5 3,1.5 3,8.5",
-    "남": "5,8 1.5,3 8.5,3"
-  };
-
-  function drawBoard() {
-    board.style.gridTemplateColumns = "repeat(" + W + ",1fr)";
-    var html = "", r, c;
+  function ways() {
+    var list = [], r, c;
     for (r = 0; r < H; r++) {
-      for (c = 0; c < W; c++) {
-        var cls = "px" + (grid[r][c] === 0 ? " way" : "");
-        var body = "";
-        if (at && at[0] === r && at[1] === c) {
-          body = '<svg viewBox="0 0 10 10"><polygon points="' +
-                 ARROW[DIRS[dir].name] + '"/></svg>';
-        }
-        html += '<div class="' + cls + '" data-r="' + r + '" data-c="' + c +
-                '">' + body + "</div>";
-      }
+      for (c = 0; c < W; c++) { if (!wall(r, c)) { list.push([r, c]); } }
     }
-    board.innerHTML = html;
-    if (mark.checked) {
-      seen.forEach(function (s) {
-        var px = board.children[s[0] * W + s[1]];
-        if (px) { px.classList.add("seen"); }
-      });
-    }
+    return list;
   }
 
-  /* ── 보이는 모습 ─────────────────────────────────────────────
+  /* ── 걸어가며 보기 ───────────────────────────────────────────
+     한 자리에서 한 방향을 보면, 깊이마다 「왼쪽이 막혔나 · 오른쪽이
+     막혔나」가 정해지고 어디서 앞이 막히는지도 정해진다. 그림은 이것만으로
+     다 그려지므로, **이 차례가 같으면 그림도 같다** */
+  function walk(r, c, d) {
+    var f = DIRS[d], lf = left(f), rt = right(f);
+    var cells = [], steps = [], k;
+    for (k = 0; k < DEEP; k++) {
+      cells.push([r, c]);
+      var step = {
+        left: wall(r + lf.dr, c + lf.dc),
+        right: wall(r + rt.dr, c + rt.dc),
+        end: false
+      };
+      var nr = r + f.dr, nc = c + f.dc;
+      if (wall(nr, nc)) { step.end = true; steps.push(step); break; }
+      steps.push(step);
+      r = nr; c = nc;
+    }
+    return {cells: cells, steps: steps};
+  }
+
+  function sign(w) {
+    return w.steps.map(function (s) {
+      return (s.left ? "1" : "0") + (s.right ? "1" : "0");
+    }).join("");
+  }
+
+  /* 그림마다 「그렇게 보이는 (자리, 방향)」과 「그 자리들」을 모아 둔다.
+     방향은 묻지 않으므로 답은 **자리**의 모음이고, 한 자리는 네 방향 중
+     하나만 맞으면 답이 된다.
+
+     한 그림이 여러 자리에서 보이는 일은 흔하다 — 막다른 데를 마주 본
+     모습은 미로 곳곳에서 똑같이 보인다. 그래서 답이 한 곳뿐인 문제만
+     고르는 스위치를 따로 둔다 */
+  function table() {
+    var map = {};
+    ways().forEach(function (p) {
+      for (var d = 0; d < 4; d++) {
+        var s = sign(walk(p[0], p[1], d));
+        var got = map[s] || (map[s] = {from: [], same: []});
+        got.from.push([p[0], p[1], d]);
+        if (!has(got.same, p[0], p[1])) { got.same.push([p[0], p[1]]); }
+      }
+    });
+    return map;
+  }
+
+  function has(list, r, c) {
+    return list.some(function (p) { return p[0] === r && p[1] === c; });
+  }
+
+  /* ── 그림 ────────────────────────────────────────────────────
      눈은 선 칸 한가운데에 있다. 칸 k 의 **뒷면**까지 거리는 k + 0.5 이고
      통로의 반폭이 0.5 이므로, 화면에 비친 그 자리의 반폭은
      0.5 / (k + 0.5) = 1 / (2k + 1) 이다.
@@ -226,92 +285,206 @@ h2{font-size:12px;color:var(--dim);font-weight:600;letter-spacing:.06em;
      몫은 그 통로의 천장과 바닥이라 희다 */
   function far(k) { return 1 / (2 * k + 1); }
 
-  function slab(sign, a, b, blocked) {
+  function slab(sign_, a, b, blocked) {
     if (blocked) {
       return '<polygon points="' +
-        (sign * a) + "," + a + " " + (sign * b) + "," + b + " " +
-        (sign * b) + "," + (-b) + " " + (sign * a) + "," + (-a) + '"/>';
+        (sign_ * a) + "," + a + " " + (sign_ * b) + "," + b + " " +
+        (sign_ * b) + "," + (-b) + " " + (sign_ * a) + "," + (-a) + '"/>';
     }
-    var x = sign < 0 ? -a : b;
+    var x = sign_ < 0 ? -a : b;
     return '<rect class="wall" x="' + x + '" y="' + (-b) +
            '" width="' + (a - b) + '" height="' + (2 * b) + '"/>';
   }
 
-  function drawView() {
+  function box(cls, b) {
+    return '<rect class="' + cls + '" x="' + (-b) + '" y="' + (-b) +
+           '" width="' + (2 * b) + '" height="' + (2 * b) + '"/>';
+  }
+
+  function paint(w) {
+    var out = "";
+    w.steps.forEach(function (s, k) {
+      var a = k === 0 ? VW : far(k - 1);
+      var b = far(k);
+      out += slab(-1, a, b, s.left);
+      out += slab(1, a, b, s.right);
+      if (rings.checked) { out += box("ring", b); }
+      /* 앞이 막혔다 — 그 벽이 소실점 자리를 덮는다 */
+      if (s.end) { out += box("wall", b); }
+    });
+    view.innerHTML =
+      '<svg viewBox="' + (-VW) + " " + (-VW) + " " + (2 * VW) + " " +
+      (2 * VW) + '" preserveAspectRatio="xMidYMid meet">' + out + "</svg>";
+  }
+
+  /* ── 판 그리기 ───────────────────────────────────────────────── */
+  var ARROW = {
+    "서": "2,5 7,1.5 7,8.5",
+    "북": "5,2 1.5,7 8.5,7",
+    "동": "8,5 3,1.5 3,8.5",
+    "남": "5,8 1.5,3 8.5,3"
+  };
+
+  function drawBoard() {
+    board.style.gridTemplateColumns = "repeat(" + W + ",1fr)";
+    /* 화살표는 살펴보기에서는 선 자리에, 퀴즈에서는 답을 밝힌 뒤
+       출제한 자리에 선다 */
+    var arrow = null;
+    if (mode === "look" && at) { arrow = {r: at[0], c: at[1], d: dir}; }
+    if (mode === "quiz" && ask && shot) {
+      arrow = {r: ask.r, c: ask.c, d: ask.dir};
+    }
+    var html = "", r, c;
+    for (r = 0; r < H; r++) {
+      for (c = 0; c < W; c++) {
+        var cls = "px" + (grid[r][c] === 0 ? " way" : "");
+        var body = "";
+        if (arrow && arrow.r === r && arrow.c === c) {
+          body = '<svg viewBox="0 0 10 10"><polygon points="' +
+                 ARROW[DIRS[arrow.d].name] + '"/></svg>';
+        }
+        html += '<div class="' + cls + '" data-r="' + r + '" data-c="' + c +
+                '">' + body + "</div>";
+      }
+    }
+    board.innerHTML = html;
+    board.classList.toggle("cool", mode === "quiz" && !!shot);
+
+    function tint(list, cls) {
+      list.forEach(function (p) {
+        var px = board.children[p[0] * W + p[1]];
+        if (px) { px.classList.add(cls); }
+      });
+    }
+    if (mode === "look" && mark.checked) { tint(seen, "seen"); }
+    if (mode === "quiz" && shot) {
+      tint(ask.same, "right");                  /* 맞는 자리는 모두 녹색 */
+      if (!has(ask.same, shot[0], shot[1])) {
+        tint([shot], "wrong");                  /* 틀리게 고른 자리는 적색 */
+      }
+    }
+  }
+
+  /* ── 살펴보기 ────────────────────────────────────────────────── */
+  function drawLook() {
     seen = [];
     if (!at) {
       view.innerHTML = "";
       what.textContent = "아직 선 자리가 없다.";
+      what.className = "note";
       return;
     }
-    var d = DIRS[dir], lf = left(d), rt = right(d);
-    var r = at[0], c = at[1], k, out = "";
-    for (k = 0; k < DEEP; k++) {
-      var a = k === 0 ? VW : far(k - 1);
-      var b = far(k);
-      seen.push([r, c]);
-      out += slab(-1, a, b, wall(r + lf.dr, c + lf.dc));
-      out += slab(1, a, b, wall(r + rt.dr, c + rt.dc));
-      if (rings.checked) {
-        out += '<rect class="ring" x="' + (-b) + '" y="' + (-b) +
-               '" width="' + (2 * b) + '" height="' + (2 * b) + '"/>';
-      }
-      var nr = r + d.dr, nc = c + d.dc;
-      if (wall(nr, nc)) {
-        /* 앞이 막혔다 — 그 벽이 소실점 자리를 덮는다 */
-        out += '<rect class="wall" x="' + (-b) + '" y="' + (-b) +
-               '" width="' + (2 * b) + '" height="' + (2 * b) + '"/>';
-        break;
-      }
-      r = nr; c = nc;
-    }
-    view.innerHTML =
-      '<svg viewBox="' + (-VW) + " " + (-VW) + " " + (2 * VW) + " " +
-      (2 * VW) + '" preserveAspectRatio="xMidYMid meet">' + out + "</svg>";
+    var w = walk(at[0], at[1], dir);
+    seen = w.cells;
+    paint(w);
+    what.className = "note";
     what.textContent = "(" + at[0] + ", " + at[1] + ") 에 서서 " +
-      d.name + "쪽 — " + seen.length + "칸이 보인다.";
+      DIRS[dir].name + "쪽 — " + w.cells.length + "칸이 보인다.";
   }
 
-  function draw() { drawView(); drawBoard(); }
+  /* ── 퀴즈 ────────────────────────────────────────────────────
+     그림만 내놓고 어느 칸에서 본 것인지 묻는다. 방향은 묻지 않으므로
+     네 방향 중 하나만 맞으면 그 자리는 답이다 */
+  function newAsk() {
+    var map = table();
+    var keys = Object.keys(map);
+    var pick = keys, tight = true;
+    if (one.checked) {
+      var solo = keys.filter(function (s) { return map[s].same.length === 1; });
+      if (solo.length) { pick = solo; } else { tight = false; }
+    }
+    var s = pick[Math.floor(Math.random() * pick.length)];
+    var spot = map[s].from[Math.floor(Math.random() * map[s].from.length)];
+    ask = {r: spot[0], c: spot[1], dir: spot[2], sign: s, same: map[s].same};
+    shot = null;
+    paint(walk(ask.r, ask.c, ask.dir));
+    what.className = "note";
+    what.textContent = tight ? "어느 칸에서 본 모습인가?"
+      : "어느 칸에서 본 모습인가? (답이 한 곳뿐인 문제가 이 미로엔 없다)";
+    drawBoard();
+  }
+
+  function answer(r, c) {
+    shot = [r, c];
+    var ok = has(ask.same, r, c);
+    what.className = "note " + (ok ? "lit" : "bad");
+    what.textContent = (ok ? "맞다." : "틀렸다.") +
+      " 이 그림으로 보이는 자리는 " + ask.same.length + "곳이다 — " +
+      "출제한 자리는 (" + ask.r + ", " + ask.c + ") 에서 " +
+      DIRS[ask.dir].name + "쪽.";
+    drawBoard();
+  }
 
   /* ── 손이 닿는 데 ────────────────────────────────────────────── */
   board.addEventListener("click", function (e) {
     var px = e.target.closest(".px");
     if (!px || !px.classList.contains("way")) { return; }
     var r = +px.dataset.r, c = +px.dataset.c;
+    if (mode === "quiz") {
+      if (!ask || shot) { return; }             /* 한 문제에 한 번만 */
+      answer(r, c);
+      return;
+    }
     if (at && at[0] === r && at[1] === c) {
       dir = (dir + 1) % 4;              /* 같은 칸을 다시 탭하면 90도 돈다 */
     } else {
       at = [r, c];
       dir = 0;                          /* 새로 서면 서쪽부터 */
     }
-    draw();
+    drawLook();
+    drawBoard();
   });
+
+  function setMode(next) {
+    mode = next;
+    mLook.classList.toggle("on", mode === "look");
+    mQuiz.classList.toggle("on", mode === "quiz");
+    again.classList.toggle("hide", mode !== "quiz");
+    onlyBox.classList.toggle("hide", mode !== "quiz");
+    tip.innerHTML = mode === "look"
+      ? "흰 칸을 탭하면 그 자리에 선다. 같은 칸을 다시 탭하면 " +
+        "<b>서 → 북 → 동 → 남</b> 으로 90도씩 돈다."
+      : "오른쪽 그림이 어느 칸에서 본 모습인지 흰 칸을 탭해 고른다. " +
+        "<b>방향은 고르지 않는다</b> — 네 방향 중 하나라도 그 그림이면 맞다.";
+    if (mode === "quiz") { newAsk(); }
+    else { ask = null; shot = null; drawLook(); drawBoard(); }
+  }
 
   function fresh() {
     W = +selW.value; H = +selH.value;
     grid = dig(W, H);
-    at = null; dir = 0;
-    draw();
+    at = null; dir = 0; ask = null; shot = null;
+    if (mode === "quiz") { newAsk(); }
+    else { drawLook(); drawBoard(); }
   }
 
   document.getElementById("fresh").addEventListener("click", fresh);
+  again.addEventListener("click", newAsk);
+  one.addEventListener("change", function () {
+    if (mode === "quiz") { newAsk(); }
+  });
+  mLook.addEventListener("click", function () { setMode("look"); });
+  mQuiz.addEventListener("click", function () { setMode("quiz"); });
   selW.addEventListener("change", fresh);
   selH.addEventListener("change", fresh);
-  mark.addEventListener("change", draw);
-  rings.addEventListener("change", draw);
+  mark.addEventListener("change", drawBoard);
+  rings.addEventListener("change", function () {
+    if (mode === "quiz") { if (ask) { paint(walk(ask.r, ask.c, ask.dir)); } }
+    else { drawLook(); }
+  });
 
-  /* 가로·세로는 각각 최대 10 이다 (10 × 10 = 100) */
+  /* 가로·세로는 각각 최대 13 이다 */
   [selW, selH].forEach(function (sel) {
     var html = "";
-    for (var n = 3; n <= 10; n++) {
+    for (var n = 3; n <= 13; n++) {
       html += '<option value="' + n + '"' + (n === 9 ? " selected" : "") +
               ">" + n + "</option>";
     }
     sel.innerHTML = html;
   });
 
-  fresh();
+  grid = dig(W, H);
+  setMode("look");
 })();
 </script>
 </body>
