@@ -25,7 +25,9 @@
     --font:"Pretendard Variable",Pretendard,-apple-system,"Malgun Gothic",
       "맑은 고딕",system-ui,sans-serif;
   }
-  html,body{height:100%}
+  *{box-sizing:border-box}
+  /* ys.css 의 html,body{height:100%} 는 **안 베낀다** — 이 페이지는 두 칸이
+     세로로 쌓이는 판이라 키를 100%로 못 박으면 폰에서 아래 칸이 판을 덮는다 */
   body{margin:0;background:var(--ink-900);color:var(--text);
     font:var(--t-lg)/1.6 var(--font);-webkit-tap-highlight-color:transparent;
     touch-action:manipulation}
