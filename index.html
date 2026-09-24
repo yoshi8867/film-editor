@@ -187,6 +187,7 @@ textarea{
     <p class="note">모든 그리드를 한 덩어리로. 눌러서 복사한다.</p>
     <textarea id="all-json" readonly></textarea>
     <div class="row" style="margin-top:8px">
+      <button class="btn gold" id="try-all">▶ 전부 시험</button>
       <button class="btn" id="copy-all">전부 복사</button>
       <button class="btn warn" id="wipe">싹 지우기</button>
     </div>
@@ -215,6 +216,7 @@ textarea{
     <h2>이 그리드만 내보내기</h2>
     <textarea id="grid-json" readonly></textarea>
     <div class="row" style="margin-top:8px">
+      <button class="btn gold" id="try-grid">▶ 이 그리드 시험</button>
       <button class="btn" id="copy-grid">이 그리드 복사</button>
       <button class="btn warn" id="del-grid">그리드 지우기</button>
     </div>
@@ -759,6 +761,13 @@ document.getElementById("del-grid").onclick = function () {
 document.getElementById("copy-all").onclick = function () {
   copy(allJSON(), "전부 복사했다");
 };
+/* 게임 한 장(film.html)을 그 문제로 연다 — 주소 # 뒤에 JSON 을 실어 보낸다.
+   박아 둔 문제집은 안 쓰고 이것만 돈다 */
+function tryOut(json) {
+  window.open("film.html#" + encodeURIComponent(JSON.stringify(JSON.parse(json))));
+}
+document.getElementById("try-all").onclick = function () { tryOut(allJSON()); };
+document.getElementById("try-grid").onclick = function () { tryOut(gridJSON()); };
 document.getElementById("copy-grid").onclick = function () {
   copy(gridJSON(), "이 그리드를 복사했다");
 };
