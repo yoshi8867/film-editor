@@ -188,6 +188,7 @@ textarea{
     <textarea id="all-json" readonly></textarea>
     <div class="row" style="margin-top:8px">
       <button class="btn gold" id="try-all">▶ 전부 시험</button>
+      <button class="btn gold" id="try-layer">▶ 나눠 그리기 둘이서</button>
       <button class="btn" id="copy-all">전부 복사</button>
       <button class="btn warn" id="wipe">싹 지우기</button>
     </div>
@@ -767,6 +768,10 @@ function tryOut(json) {
   window.open("film.html#" + encodeURIComponent(JSON.stringify(JSON.parse(json))));
 }
 document.getElementById("try-all").onclick = function () { tryOut(allJSON()); };
+/* 필름 나눠 그리기 — 한 PC 에서 둘이. 지금 짠 그림들의 목표로 돈다 */
+document.getElementById("try-layer").onclick = function () {
+  window.open("layer.html#" + encodeURIComponent(JSON.stringify(JSON.parse(allJSON()))));
+};
 document.getElementById("try-grid").onclick = function () { tryOut(gridJSON()); };
 document.getElementById("copy-grid").onclick = function () {
   copy(gridJSON(), "이 그리드를 복사했다");
