@@ -122,8 +122,9 @@
 <div class="rows"><span>맞춰 볼 번호</span>
   <input type="text" id="want" placeholder="0024408 (있으면 맞나 견줘 본다)" inputmode="numeric"></div>
 <div class="rows"><span>자릿수</span>
-  <input type="number" id="len" min="0" max="12" step="1" value="7">
-  <small class="note" style="margin:0">숫자가 이만큼이라야 센다. 0이면 안 거른다</small></div>
+  <input type="text" id="len" value="7,8" inputmode="numeric" style="width:84px">
+  <small class="note" style="margin:0">이 자릿수라야 센다 (여럿이면 쉼표).
+    도서실 등록번호는 0000024408 꼴과 0020131523 꼴 두 가지다. 비우면 안 거른다</small></div>
 <div class="rows"><span>필요한 표</span>
   <input type="range" id="need" min="1" max="6" value="3"><span class="num" id="vNeed">3표</span></div>
 <div class="rows"><span>보는 창</span>
@@ -381,8 +382,9 @@
   function saw(raw, fmt) {
     const now = Date.now();
     const got = toReg(raw);
-    const want = +$("len").value | 0;
-    const drop = want > 0 && got.kind === "등록번호" && got.digits !== want;
+    const want = $("len").value.split(/[,\s]+/).map(n => parseInt(n, 10))
+      .filter(n => n > 0);
+    const drop = want.length && got.kind === "등록번호" && !want.includes(got.digits);
 
     reads++;
     const rec = LOG.get(raw) || { raw, fmt: String(fmt), n: 0, first: now,
