@@ -82,17 +82,23 @@
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.18}}
 
   /* ── 액자 ──────────────────────────────────────────────────
-     가운데 3×3 이 뚫린 한 덩어리. 판 틀 안에만 있어 평소엔 안 보인다.
-     속은 두 겹이다 — clip-path 는 바탕색만 자르고 흐림은 안 잘라서,
-     한 장으로 하면 구멍까지 흐려진다. 흐림은 네모 넷으로 나눠 걸고
-     어둑한 것만 한 장으로 덮어 이음매를 가린다 */
+     가운데 3×3 이 뚫린 **한 장**. 구멍은 가리개(mask)로 뚫는다 —
+     네모 둘을 겹쳐 놓고 겹친 데를 빼면 가운데가 빈다. 가리개는
+     바탕색만이 아니라 흐림까지 같이 자른다 (clip-path 는 못 한다).
+
+     여러 장으로 나눠 붙이지 않는다. 흐림은 제 테두리 안쪽만 긁으므로
+     나누면 맞닿은 선마다 이음매가 생기고, 움직이는 동안 저마다 따로
+     반올림되어 판이 어긋나 보인다 */
   .frame{position:absolute;inset:0;pointer-events:none;
+    background:rgba(18,16,13,.62);
+    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+    -webkit-mask-image:linear-gradient(#000,#000),linear-gradient(#000,#000);
+    mask-image:linear-gradient(#000,#000),linear-gradient(#000,#000);
+    -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+    -webkit-mask-composite:xor;mask-composite:exclude;
     transform:translateY(-101%);
     transition:transform var(--fall) cubic-bezier(.45,.05,.3,1)}
   .frame.down{transform:translateY(0)}
-  .frame i{position:absolute;display:block}
-  .frame .haze{-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
-  .frame .tint{inset:0;background:rgba(18,16,13,.62)}
 
   .go{width:96px;height:96px;border-radius:50%;border:2px solid var(--gold);
     background:radial-gradient(circle at 50% 38%,
@@ -133,6 +139,7 @@
     <option value="cubic-bezier(.45,0,.55,1)">양끝이 무겁다</option>
     <option value="cubic-bezier(.34,1.4,.5,1)">살짝 튄다</option>
   </select>
+  <button id="copy">정한 값 베끼기</button>
   <button id="again">새 판</button>
   <button id="stir" class="on">남의 판 움직이기</button>
 </div>
@@ -312,29 +319,14 @@
     var span = SIDE * m + (SIDE - 1) * g;
     me.style.cssText = "width:" + span + "px;height:" + span + "px";
 
-    /* 액자 — 가운데 3×3 이 구멍이다. 판이 정사각이라 네 변이 다 같다 */
-    var box = span + g * 2;
+    /* 액자 구멍 — 가리개 네모 둘을 겹쳐 놓고 겹친 데를 뺀다 */
     var off = (SIDE - CORE) / 2;
-    var x1 = g + off * pitch - 1;
-    var x2 = x1 + CORE * m + (CORE - 1) * g + 2;
-    frame.innerHTML = "";
-    [[0, 0, box, x1], [0, x2, box, box - x2],
-     [0, x1, x1, x2 - x1], [x2, x1, box - x2, x2 - x1]
-    ].forEach(function (r) {
-      var e = document.createElement("i");
-      e.className = "haze";
-      e.style.cssText = "left:" + r[0] + "px;top:" + r[1] + "px;width:" +
-        r[2] + "px;height:" + r[3] + "px";
-      frame.appendChild(e);
-    });
-    var tint = document.createElement("i");
-    tint.className = "tint";
-    tint.style.clipPath = tint.style.webkitClipPath =
-      "polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, " +
-      x1 + "px " + x1 + "px, " + x2 + "px " + x1 + "px, " +
-      x2 + "px " + x2 + "px, " + x1 + "px " + x2 + "px, " +
-      x1 + "px " + x1 + "px)";
-    frame.appendChild(tint);
+    var at = g + off * pitch - 1;
+    var hole = CORE * m + (CORE - 1) * g + 2;
+    frame.style.webkitMaskSize = frame.style.maskSize =
+      "100% 100%, " + hole + "px " + hole + "px";
+    frame.style.webkitMaskPosition = frame.style.maskPosition =
+      "0 0, " + at + "px " + at + "px";
 
     me.innerHTML = "";
     slots = [];
@@ -480,6 +472,37 @@
   };
   document.getElementById("ease").onchange = function () {
     root.style.setProperty("--ease", this.value);
+  };
+  /* 돌려 보고 정한 값을 통째로 베낀다 — 그대로 저쪽에 옮기면 된다 */
+  document.getElementById("copy").onclick = function () {
+    var ease = document.getElementById("ease");
+    var said = "스피드 슬라이드 — 실험실에서 정한 값\n" +
+      "인원 " + n + "  한 판 " + limit + "초  타일 " + z + "px\n" +
+      "미끄러짐 " + document.getElementById("slip").value + "ms  " + ease.options[ease.selectedIndex].text + "\n" +
+      "액자 " + FALL + "ms (내려오고 올라가는 참)\n\n" +
+      "server/speed.py    LIMIT = " + limit + ".0\n" +
+      "static/speed.html  var SLIP = " +
+        parseInt(root.style.getPropertyValue("--slip"), 10) + ";\n" +
+      "                   var EASE = \"" + ease.value + "\";\n" +
+      "                   var FALL = " + FALL + ";  var RISE = " + FALL + ";\n" +
+      "                   .frame transition " + FALL + "ms\n";
+    var b = this;
+    function done(ok) {
+      b.textContent = ok ? "베꼈다" : "안 된다 — 직접 고르시라";
+      setTimeout(function () { b.textContent = "정한 값 베끼기"; }, 1600);
+    }
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(said).then(function () { done(1); },
+                                              function () { done(0); });
+      return;
+    }
+    var ta = document.createElement("textarea");   /* https 가 아니면 이 길로 */
+    ta.value = said;
+    ta.style.cssText = "position:fixed;left:-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try { done(document.execCommand("copy")); } catch (e) { done(0); }
+    document.body.removeChild(ta);
   };
   document.getElementById("again").onclick = serve;
   document.getElementById("stir").onclick = function () {
