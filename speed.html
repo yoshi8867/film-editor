@@ -12,6 +12,7 @@
     --text:#ece7de; --dim:#8b8275;
     --gold:#e8b339; --green:#3fb950; --red:#e5534b;
     --r-md:10px; --slip:170ms; --ease:cubic-bezier(.2,.9,.3,1);
+    --fall:2000ms;
     --font:"Pretendard Variable",Pretendard,-apple-system,"Malgun Gothic",
       "맑은 고딕",system-ui,sans-serif;
   }
@@ -70,23 +71,28 @@
     cursor:pointer}
   .tl::after{content:"";position:absolute;inset:0;border-radius:4px;
     opacity:0;background:var(--green)}
-  .pit.won .tl::after{animation:flash .42s steps(1) 3}
+  .pit.won .tl::after,.pit.bad .tl::after{animation:flash .42s steps(1) 3}
+  .pit.bad .tl::after{background:var(--red)}
   .pit.done{border-color:var(--green)}
   .pit.done .tl::after{opacity:.16}
   .pit.miss{border-color:var(--red)}
-  .pit.miss .tl::after{opacity:.5;background:var(--red)}
   .pit.burn .tl::after{opacity:.5;background:var(--red);
     animation:blink .5s steps(1) infinite}
   @keyframes flash{0%{opacity:.72}50%{opacity:0}}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.18}}
 
-  /* ── 액자 — 한 덩어리다. 가운데 3×3 만 뚫렸고, 판 틀 안에만 있다 ── */
+  /* ── 액자 ──────────────────────────────────────────────────
+     가운데 3×3 이 뚫린 한 덩어리. 판 틀 안에만 있어 평소엔 안 보인다.
+     속은 두 겹이다 — clip-path 는 바탕색만 자르고 흐림은 안 잘라서,
+     한 장으로 하면 구멍까지 흐려진다. 흐림은 네모 넷으로 나눠 걸고
+     어둑한 것만 한 장으로 덮어 이음매를 가린다 */
   .frame{position:absolute;inset:0;pointer-events:none;
-    background:rgba(18,16,13,.62);
-    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
     transform:translateY(-101%);
-    transition:transform 420ms cubic-bezier(.3,.9,.35,1)}
+    transition:transform var(--fall) cubic-bezier(.45,.05,.3,1)}
   .frame.down{transform:translateY(0)}
+  .frame i{position:absolute;display:block}
+  .frame .haze{-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+  .frame .tint{inset:0;background:rgba(18,16,13,.62)}
 
   .go{width:96px;height:96px;border-radius:50%;border:2px solid var(--gold);
     background:radial-gradient(circle at 50% 38%,
@@ -119,6 +125,8 @@
     <span id="zoomN">58px</span></span>
   <span><b>미끄러짐</b> <input type="range" id="slip" min="60" max="600" step="10" value="170">
     <span id="slipN">170ms</span></span>
+  <span><b>액자</b> <input type="range" id="fall" min="400" max="4000" step="100" value="2000">
+    <span id="fallN">2000ms</span></span>
   <select id="ease">
     <option value="cubic-bezier(.2,.9,.3,1)">빨리 붙고 천천히 멎는다</option>
     <option value="cubic-bezier(.4,0,.2,1)">부드럽게</option>
@@ -154,7 +162,10 @@
   "use strict";
 
   var SIDE = 5, CORE = 3, KINDS = 6, EACH = 4, CELLS = 25, MISS = 7;
-  var FALL = 430, FLASH = 1320, TICKS = 30, WARN = 5, BURN = 2;
+  /* 제출하면 내려오고(FALL) · 멎어 있고(HOLD) · 점멸하고(FLASH) ·
+     올라간다(FALL). 틀리면 통째로 날아가는 그 참이 곧 벌이다 */
+  var FALL = 2000, HOLD = 2000, FLASH = 1260;
+  var TICKS = 30, WARN = 5, BURN = 2;
 
   var TILE = JSON.parse(document.getElementById("tiles").textContent);
 
@@ -301,16 +312,29 @@
     var span = SIDE * m + (SIDE - 1) * g;
     me.style.cssText = "width:" + span + "px;height:" + span + "px";
 
-    /* 액자 — 바깥 테를 그리고 같은 점으로 돌아와 안쪽 네모를 그리면
-       evenodd 가 가운데 3×3 을 **한 번에** 도려낸다 */
+    /* 액자 — 가운데 3×3 이 구멍이다. 판이 정사각이라 네 변이 다 같다 */
+    var box = span + g * 2;
     var off = (SIDE - CORE) / 2;
     var x1 = g + off * pitch - 1;
     var x2 = x1 + CORE * m + (CORE - 1) * g + 2;
-    frame.style.clipPath = frame.style.webkitClipPath =
+    frame.innerHTML = "";
+    [[0, 0, box, x1], [0, x2, box, box - x2],
+     [0, x1, x1, x2 - x1], [x2, x1, box - x2, x2 - x1]
+    ].forEach(function (r) {
+      var e = document.createElement("i");
+      e.className = "haze";
+      e.style.cssText = "left:" + r[0] + "px;top:" + r[1] + "px;width:" +
+        r[2] + "px;height:" + r[3] + "px";
+      frame.appendChild(e);
+    });
+    var tint = document.createElement("i");
+    tint.className = "tint";
+    tint.style.clipPath = tint.style.webkitClipPath =
       "polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, " +
       x1 + "px " + x1 + "px, " + x2 + "px " + x1 + "px, " +
       x2 + "px " + x2 + "px, " + x1 + "px " + x2 + "px, " +
       x1 + "px " + x1 + "px)";
+    frame.appendChild(tint);
 
     me.innerHTML = "";
     slots = [];
@@ -401,22 +425,27 @@
     place(false);
   });
 
+  /* 내려오고(2초) · 멎어 있고(2초) · 그제야 가린 값이 점멸하고 ·
+     다시 올라간다(2초). 그동안 손은 내내 멎는다 */
   go.addEventListener("click", function () {
     if (!open_()) { return; }
     busy = true;
     frame.classList.add("down");
     setTimeout(function () {
       var ok = solved();
-      if (ok) { doneAt = Date.now() / 1000; pit.classList.add("won"); }
-      else { missAt = Date.now() / 1000; }
+      if (ok) { doneAt = Date.now() / 1000; } else { missAt = Date.now() / 1000; }
+      pit.classList.add(ok ? "won" : "bad");
       draw();
       setTimeout(function () {
         frame.classList.remove("down");
-        pit.classList.remove("won");
-        busy = false;
-        draw();
-      }, ok ? FLASH : 620);
-    }, FALL);
+        pit.classList.remove("bad");
+        setTimeout(function () {
+          pit.classList.remove("won");
+          busy = false;
+          draw();
+        }, FALL);
+      }, FLASH);
+    }, FALL + HOLD);
   });
 
   /* ── 손잡이 ────────────────────────────────────────────────── */
@@ -443,6 +472,11 @@
   document.getElementById("slip").oninput = function () {
     root.style.setProperty("--slip", this.value + "ms");
     document.getElementById("slipN").textContent = this.value + "ms";
+  };
+  document.getElementById("fall").oninput = function () {
+    FALL = +this.value;
+    root.style.setProperty("--fall", FALL + "ms");
+    document.getElementById("fallN").textContent = FALL + "ms";
   };
   document.getElementById("ease").onchange = function () {
     root.style.setProperty("--ease", this.value);
