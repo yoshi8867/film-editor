@@ -357,6 +357,7 @@
     busy = false;
     frame.classList.remove("down");
     pit.classList.remove("won");
+    pit.classList.remove("bad");
     build();
     draw();
   }
@@ -417,8 +418,9 @@
     place(false);
   });
 
-  /* 내려오고(2초) · 멎어 있고(2초) · 그제야 가린 값이 점멸하고 ·
-     다시 올라간다(2초). 그동안 손은 내내 멎는다 */
+  /* 내려오고(2초) · 멎어 있고(2초) · 그제야 가린 값이 점멸한다.
+     맞았으면 **액자는 그대로 덮여 있다** — 거기서 끝이라 판을 도로
+     보여 줄 까닭이 없다. 틀렸으면 올라가고(2초) 다시 민다 */
   go.addEventListener("click", function () {
     if (!open_()) { return; }
     busy = true;
@@ -429,10 +431,11 @@
       pit.classList.add(ok ? "won" : "bad");
       draw();
       setTimeout(function () {
-        frame.classList.remove("down");
+        pit.classList.remove("won");
         pit.classList.remove("bad");
+        if (ok) { busy = false; draw(); return; }   /* 덮인 채로 둔다 */
+        frame.classList.remove("down");
         setTimeout(function () {
-          pit.classList.remove("won");
           busy = false;
           draw();
         }, FALL);
