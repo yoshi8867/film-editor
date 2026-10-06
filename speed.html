@@ -96,8 +96,7 @@
     cursor:pointer}
   .tl::after{content:"";position:absolute;inset:0;border-radius:4px;
     opacity:0;background:var(--green)}
-  .pit.won .tl::after,.pit.bad .tl::after{animation:flash .42s steps(1) 3}
-  .pit.bad .tl::after{background:var(--red)}
+  .pit.won .tl::after{animation:flash .42s steps(1) 3}
   .pit.done{border-color:var(--green)}
   .pit.done .tl::after{opacity:.16}
   .pit.miss{border-color:var(--red)}
@@ -151,8 +150,8 @@
   <span><b>인원</b>
     <button data-n="2">2</button><button data-n="3">3</button
     ><button data-n="4" class="on">4</button></span>
-  <span><b>한 판</b> <input type="range" id="secs" min="20" max="180" step="10" value="120">
-    <span id="secsN">120초</span></span>
+  <span><b>한 판</b> <input type="range" id="secs" min="20" max="180" step="10" value="100">
+    <span id="secsN">100초</span></span>
   <span><b>타일</b> <input type="range" id="zoom" min="26" max="80" value="58">
     <span id="zoomN">58px</span></span>
   <span><b>미끄러짐</b> <input type="range" id="slip" min="60" max="600" step="10" value="240">
@@ -200,6 +199,7 @@
 
   var SIDE = 5, CORE = 3, KINDS = 6, EACH = 4, CELLS = 25, MISS = 7;
   var HOLD = 2000, FLASH = 1260, TICKS = 30, WARN = 5, BURN = 2;
+  var BLINK = 0.8;           /* 틀렸을 때 제 램프가 붉은 참 (초) */
   var FALL = 2000;
 
   var TILE = JSON.parse(document.getElementById("tiles").textContent);
@@ -213,7 +213,7 @@
   var clock = document.getElementById("clock");
   var root = document.documentElement;
 
-  var n = 4, limit = 120, z = 58, stir = true, pitch = 0;
+  var n = 4, limit = 100, z = 58, stir = true, pitch = 0;
   var goal = null, mine = [], boards = [], t0 = 0;
   var doneAt = 0, missAt = 0, burnAt = 0, busy = false, frames = 0;
   var slots = [], seats = [], goalPx = null;
@@ -404,7 +404,6 @@
     busy = false;
     frame.classList.remove("down");
     pit.classList.remove("won");
-    pit.classList.remove("bad");
     build();
     draw();
   }
@@ -423,8 +422,10 @@
     for (var k = 0; k < seats.length; k++) {
       fill(seats[k], k === 0 ? core(mine) : core(boards[k - 1]));
       seats[k].box.classList.toggle("done", k === 0 && !!doneAt);
-      seats[k].dot.className = "dot" +
-        (k === 0 ? (doneAt ? " on" : missAt ? " on warn" : "") : "");
+      /* 녹색은 맞춘 것, 적색은 **방금 틀렸다**는 한 번의 점등이다 */
+      seats[k].dot.className = "dot" + (k !== 0 ? ""
+        : doneAt ? " on"
+        : (missAt && Date.now() / 1000 - missAt < BLINK) ? " on warn" : "");
     }
     pit.classList.toggle("done", !!doneAt);
     pit.classList.toggle("miss", !!missAt && !doneAt);
@@ -476,11 +477,10 @@
     setTimeout(function () {
       var ok = solved();
       if (ok) { doneAt = Date.now() / 1000; } else { missAt = Date.now() / 1000; }
-      pit.classList.add(ok ? "won" : "bad");
+      if (ok) { pit.classList.add("won"); }    /* 틀린 것은 램프가 말한다 */
       draw();
       setTimeout(function () {
         pit.classList.remove("won");
-        pit.classList.remove("bad");
         if (ok) { busy = false; draw(); return; }   /* 덮인 채로 둔다 */
         frame.classList.remove("down");
         setTimeout(function () {
