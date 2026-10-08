@@ -67,9 +67,13 @@
     justify-content:center}
   .answers{display:flex;flex-direction:column;gap:var(--s-3)}
   .ans{display:flex;align-items:center;gap:var(--s-3)}
-  .slot{background:var(--sheet);border-radius:var(--r-sm);overflow:hidden;
-    display:flex;align-items:center;justify-content:center;
-    box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+  /* 슬롯 — 들창(.win) 하나만 보이고 띠(.strip)가 위아래로 흐른다.
+     칸과 칸 사이에는 가로 칸막이가 있어, 넘어가는 동안 줄이 지나간다 */
+  .win{background:var(--sheet);border-radius:var(--r-sm);overflow:hidden;
+    border-top:2px solid var(--cast);position:relative}
+  .strip{will-change:transform}
+  .cell{border-bottom:2px solid var(--cast);display:flex;
+    align-items:center;justify-content:center}
   .lift{display:flex;flex-direction:column;gap:2px}
 
   .ys-tri{padding:0;border:none;background:none;color:var(--gold);
@@ -305,6 +309,7 @@ const K2 = [
   ["wtH",   "추 키",      28, 120, 64, "px"],
   ["arrow", "화살표",     24, 130, 76, "px"],
   ["slotW", "슬롯 너비",  40, 180, 92, "px"],
+  ["spin",  "슬롯 넘김",  80, 600,220, "ms"],
   ["pfp",   "프사",       24,  72, 40, "px"],
   ["spaceW","개별 공간",  90, 320,170, "px"],
 ];
@@ -434,13 +439,23 @@ function boardSVG(){
 }
 
 /* ══ 정답 칸 ═════════════════════════════════════════════════════ */
-function slotSVG(i){
-  const box = glyphBox(), pad = 14;
-  const BW = box.w + pad*2, BH = box.h + pad*2;
-  const g = glyph(S.slot[i], CAST);             /* 흰 칸이라 먹빛으로 적는다 */
-  const z = V.slotW / BW;
-  return `<svg width="${V.slotW}" height="${(BH*z).toFixed(1)}" viewBox="0 0 ${BW} ${BH}">
-    <g transform="translate(${BW/2-g.w/2} ${BH/2-g.h/2})">${g.body}</g></svg>`;
+const slotBox = () => { const b = glyphBox(), pad = 14;
+  return { w: b.w + pad*2, h: b.h + pad*2 }; };
+const cellH = () => { const b = slotBox();
+  return Math.round(b.h * (V.slotW / b.w)) + 2; };   /* 칸막이 두 자리까지 */
+function cellSVG(n){
+  const b = slotBox(), g = glyph(n, CAST), h = cellH();  /* 흰 칸이라 먹빛이다 */
+  return `<div class="cell" style="height:${h}px">
+    <svg width="${V.slotW}" height="${h-2}" viewBox="0 0 ${b.w} ${b.h}">
+      <g transform="translate(${b.w/2-g.w/2} ${b.h/2-g.h/2})">${g.body}</g></svg></div>`;
+}
+/* 지금 수를 가운데 두고 앞뒤 한 칸씩 더 얹는다. 띠를 한 칸 올려 둬야
+   가운데가 들창에 든다 — 넘길 때는 이 자리를 한 칸 더 밀면 된다 */
+function slotHTML(i){
+  const h = cellH(), v = S.slot[i];
+  const cells = [-1,0,1].map(d => cellSVG((v+d+MAX+1) % (MAX+1))).join("");
+  return `<div class="win" style="width:${V.slotW}px;height:${h}px">
+    <div class="strip" id="strip${i}" style="transform:translateY(${-h}px)">${cells}</div></div>`;
 }
 function answersHTML(){
   /* 퀴즈 추 얼굴 — 추 위의 그림과 같은 것을 작게 */
@@ -458,13 +473,13 @@ function answersHTML(){
   };
   /* 오르내림은 ys.css 의 세모 버튼 — 방향이 뜻의 일부인 자리다 */
   const triBtn = (i, d) =>
-    `<button class="ys-tri${d>0?" down":""}" data-slot="${i}" data-d="${d}"
+    `<button class="ys-tri${d<0?" down":""}" data-slot="${i}" data-d="${d}"
        style="width:44px;height:30px">
        <svg viewBox="0 0 44 30"><polygon points="22,4 41,26 3,26"/></svg></button>`;
   return [0,1].map(i =>
     `<div class="ans">${face(i)}
-       <div class="slot" id="slot${i}">${slotSVG(i)}</div>
-       <div class="lift">${triBtn(i,-1)}${triBtn(i,1)}</div></div>`).join("");
+       ${slotHTML(i)}
+       <div class="lift">${triBtn(i,1)}${triBtn(i,-1)}</div></div>`).join("");
 }
 
 /* ══ 개별 공간 ═══════════════════════════════════════════════════
@@ -515,6 +530,20 @@ function render(){
 }
 
 /* ══ 손가락 ══════════════════════════════════════════════════════ */
+/* 슬롯을 한 칸 넘긴다. 수가 커지면 띠가 위로 올라간다 */
+let spinning = false;
+function spin(i, d){
+  if (spinning) return;                         /* 흐르는 동안은 안 받는다 */
+  spinning = true;
+  const st = $("strip"+i), h = cellH();
+  st.style.transition = `transform ${V.spin}ms cubic-bezier(.3,.9,.3,1)`;
+  st.style.transform = `translateY(${-h*(1+d)}px)`;
+  setTimeout(() => {
+    S.slot[i] = (S.slot[i] + d + MAX + 1) % (MAX + 1);
+    S.verdict = ""; spinning = false; render();
+  }, V.spin);
+}
+
 function move(k, where){
   const from = S.at[k];
   if (from !== "home" && where === "home"){     /* 접시에서 내릴 때만 먼저 띄운다 */
@@ -537,11 +566,7 @@ document.addEventListener("click", e => {
     render(); return;
   }
   const bt = e.target.closest("[data-slot]");
-  if (bt){
-    const i = +bt.dataset.slot;
-    S.slot[i] = (S.slot[i] + +bt.dataset.d + MAX + 1) % (MAX + 1);
-    S.verdict = ""; render(); return;
-  }
+  if (bt){ spin(+bt.dataset.slot, +bt.dataset.d); return; }
 });
 $("submit").onclick = () => {
   const won = S.slot[0] === S.quiz[0] && S.slot[1] === S.quiz[1];
@@ -615,6 +640,10 @@ ok("올림 내림은 곧게 위아래로만 간다",
     /<g class="drop">/.test(boardSVG()) && !/<g transform="[^"]*" class="drop"/.test(boardSVG())),
    true);
 anim.k = null; anim.how = ""; S.at["u1"] = "home";
+ok("위 세모가 수를 키운다", /data-d="1"[\s\S]*data-d="-1"/.test(answersHTML()), true);
+ok("아래로 가는 세모만 뒤집는다", (answersHTML().match(/ys-tri down/g) || []).length, 2);
+ok("슬롯은 앞뒤 한 칸씩 거느린다", (slotHTML(0).match(/class="cell"/g) || []).length, 3);
+ok("칸마다 가로 칸막이를 두른다", /class="cell"/.test(cellSVG(7)), true);
 ok("다람쥐 얼굴 넷을 박아 두었다",
    MUGS.length === 4 && MUGS.every(m => m.startsWith("data:image/png;base64,")), true);
 
