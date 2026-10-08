@@ -7,17 +7,26 @@
 <style>
 @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
 
-  /* 혼자 서는 한 장이다 — ys.css 를 걸지 않고 쓰는 값만 베껴 둔다 */
+  /* 혼자 서는 한 장이다 — ys.css 를 걸지 않고 **쓰는 값만 베껴 둔다.**
+     ys.css 가 바뀌면 이 토막도 손으로 맞춘다 */
   :root{
     --ink-900:#12100d; --ink-800:#1b1815; --ink-700:#221e1a;
     --line:#332e28;    --line-2:#4a433a;
     --text:#ece7de;    --dim:#8b8275;
-    --gold:#e8b339;    --gold-lit:#ffd873; --green:#3fb950; --red:#e5534b;
-    --t-xs:11.5px; --t-sm:12.5px; --t-md:14.5px; --t-lg:16px;
+    --gold:#e8b339;    --gold-lit:#ffd873;
+    --green:#3fb950;   --red:#e5534b;    --on-gold:var(--gold-lit);
+    --t-xs:11.5px; --t-sm:12.5px; --t-md:14.5px;
     --s-2:8px; --s-3:12px; --s-4:16px; --s-6:24px;
-    --r-sm:5px;
+    --r-sm:5px; --r-md:10px;
+    --m-state:180ms ease;
     --font:"Pretendard Variable",Pretendard,-apple-system,"Malgun Gothic",
       "맑은 고딕",system-ui,sans-serif;
+
+    /* 그림자놀이의 흰 판 — 저울과 추는 여기 비치는 **먹빛 실루엣**이다.
+       ys.css 의 --paper(누런 종이)·--cast(먹) 와 같은 자리에 서는 색이되,
+       저울 판은 누런 기 없이 흰 것으로 한다 */
+    --sheet:#ffffff;
+    --cast:#12100d;
   }
   *{box-sizing:border-box}
   [hidden]{display:none !important}
@@ -28,7 +37,7 @@
   @media (max-width:1100px){body{grid-template-columns:1fr}}
 
   .stage{padding:var(--s-4);display:flex;flex-direction:column;
-    gap:var(--s-4);align-items:center;justify-content:flex-start}
+    gap:var(--s-4);align-items:center}
   .panel{border-left:1px solid var(--line);background:var(--ink-800);
     padding:var(--s-4);display:flex;flex-direction:column;gap:var(--s-2);
     overflow:auto;max-height:100vh;position:sticky;top:0}
@@ -42,54 +51,77 @@
   .row input[type=range]{flex:1;accent-color:var(--gold);min-width:0}
   .row output{flex:0 0 46px;text-align:right;font-size:var(--t-sm);
     font-variant-numeric:tabular-nums}
-  select,button{background:var(--ink-700);color:var(--text);
+  select,button.plain{background:var(--ink-700);color:var(--text);
     border:1px solid var(--line-2);border-radius:var(--r-sm);
     padding:6px 10px;font:var(--t-sm) var(--font);cursor:pointer}
-  button:hover{border-color:var(--gold)}
+  button.plain:hover{border-color:var(--gold)}
   textarea{width:100%;height:110px;background:var(--ink-900);color:var(--dim);
     border:1px solid var(--line);border-radius:var(--r-sm);padding:var(--s-2);
     font:11px/1.5 ui-monospace,Consolas,monospace;resize:vertical}
   .hint{font-size:var(--t-xs);color:var(--dim);line-height:1.6}
 
-  /* ── 1행 — 정답 칸과 제출 ──────────────────────────────────── */
+  /* ── 1행 — 정답 칸과 제출 ──────────────────────────────────────
+     슬롯을 오르내리는 것은 ys.css 의 .ys-tri — 「수를 올리고 내리는
+     자리」가 세모 버튼이 서는 두 자리 중 하나다. 제출은 .ys-btn */
   .top{display:flex;align-items:center;gap:var(--s-6);flex-wrap:wrap;
     justify-content:center}
   .answers{display:flex;flex-direction:column;gap:var(--s-3)}
   .ans{display:flex;align-items:center;gap:var(--s-3)}
-  .slot{background:#0b0a08;border:1px solid var(--line-2);border-radius:6px;
-    display:flex;align-items:center;justify-content:center;overflow:hidden}
-  .lift{display:flex;flex-direction:column;gap:4px}
-  .lift button{padding:0;display:flex;align-items:center;justify-content:center;
-    background:var(--ink-700);border:1px solid var(--line-2)}
-  .lift button:active{background:var(--gold);border-color:var(--gold)}
-  #submit{background:var(--gold);color:#12100d;border:0;font-weight:700;
-    border-radius:10px;padding:0}
-  #submit[disabled]{opacity:.3;cursor:not-allowed}
-  #submit.ok{background:var(--green)} #submit.no{background:var(--red)}
+  .slot{background:var(--sheet);border-radius:var(--r-sm);overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+  .lift{display:flex;flex-direction:column;gap:2px}
 
-  /* ── 2행 — 저울 ────────────────────────────────────────────── */
-  svg.scale{display:block;width:min(100%,880px);height:auto}
+  .ys-tri{padding:0;border:none;background:none;color:var(--gold);
+    cursor:pointer;display:block;
+    transition:transform 80ms,color var(--m-state)}
+  .ys-tri svg{display:block;width:100%;height:100%;overflow:visible;
+    transition:transform var(--m-state)}
+  .ys-tri polygon{fill:color-mix(in srgb,var(--gold) 9%,var(--ink-900));
+    stroke:currentColor;stroke-width:2;stroke-linejoin:round;
+    vector-effect:non-scaling-stroke;transition:fill var(--m-state)}
+  .ys-tri:active{transform:scale(.94);color:var(--on-gold)}
+  .ys-tri:active polygon{fill:color-mix(in srgb,var(--gold) 28%,var(--ink-800))}
+  .ys-tri.down svg{transform:rotate(180deg)}
+
+  .ys-btn{width:132px;height:132px;border-radius:50%;
+    border:2px solid var(--gold);color:var(--gold);cursor:pointer;
+    background:radial-gradient(circle at 50% 38%,
+      color-mix(in srgb,var(--gold) 13%,var(--ink-800)),
+      color-mix(in srgb,var(--gold) 5%,var(--ink-900)));
+    display:flex;align-items:center;justify-content:center;
+    transition:transform 80ms,border-color var(--m-state),
+      background var(--m-state),color var(--m-state)}
+  .ys-btn:active{transform:scale(.955)}
+  .ys-btn.cool{border-color:var(--line);color:var(--dim);cursor:default;
+    background:radial-gradient(circle at 50% 38%,
+      color-mix(in srgb,var(--ink-800) 70%,var(--line)),var(--ink-800))}
+  .ys-btn.done{border-color:var(--green);color:var(--green)}
+  .ys-btn.bad{border-color:var(--red);color:var(--red)}
+
+  /* ── 2행 — 저울. **흰 판에 검은 실루엣** ────────────────────── */
+  svg.scale{display:block;width:min(100%,900px);height:auto}
   .beam,.sling{transition:transform var(--sway,760ms) cubic-bezier(.22,1.5,.36,1)}
   .wt{cursor:pointer}
-  .wt.locked{cursor:default;opacity:.55}
-  .wt.sel>.body{stroke:var(--gold-lit);stroke-width:3}
+  .wt.locked{cursor:default;opacity:.45}
+  .wt.sel>.body{stroke:var(--gold);stroke-width:4}
   @keyframes drop{from{transform:translateY(-70px);opacity:0}}
   @keyframes rise{to{transform:translateY(-70px);opacity:0}}
   .drop{animation:drop 420ms cubic-bezier(.3,1.3,.5,1)}
   .rise{animation:rise 360ms ease-in forwards}
   .go{cursor:pointer}
-  .go:hover>polygon{fill:var(--gold-lit)}
+  .go:hover>path{fill:var(--gold-lit)}
 
-  /* ── 3행 — 개별 공간 ───────────────────────────────────────── */
+  /* ── 3행 — 개별 공간. 추가 검은 실루엣이니 바탕도 흰 판이다 ─── */
   .spaces{display:flex;gap:var(--s-4);flex-wrap:wrap;justify-content:center}
   .me{display:flex;flex-direction:column;align-items:center;gap:6px}
-  .space{border:2px solid var(--line-2);border-radius:14px;
-    background:var(--ink-800);display:flex;align-items:center;
+  .space{border:3px solid transparent;border-radius:14px;
+    background:var(--sheet);display:flex;align-items:center;
     justify-content:center;gap:6px;padding:8px;position:relative}
-  .space.mine{border-color:var(--gold)}
-  .space .go{position:absolute;inset:auto auto 4px 50%;transform:translateX(-50%)}
-  /* 프사 — ys.css 의 .ys-mug 를 그대로 베꼈다. 도트 그림이라 뭉개면 안 되고,
-     **내 다람쥐만 녹색 테두리**다 (녹색 = 여기 있다 · 나) */
+  .space.mine{border-color:var(--gold)}        /* 내 칸 — 내가 손대는 곳 */
+
+  /* 프사 — ys.css 의 .ys-mug 를 그대로 베꼈다. 도트 그림이라 뭉개면
+     안 되고, **내 다람쥐만 녹색 테두리**다 (녹색 = 여기 있다 · 나) */
   .pfp{border-radius:50%;flex:none;border:2px solid var(--line);
     background:var(--ink-800) center/cover no-repeat;image-rendering:pixelated}
   .pfp.me{border-color:var(--green);
@@ -104,7 +136,7 @@
 <div class="stage">
   <div class="top">
     <div class="answers" id="answers"></div>
-    <button id="submit">제출</button>
+    <button class="ys-btn" id="submit"></button>
   </div>
   <div id="board"></div>
   <div class="spaces" id="spaces"></div>
@@ -119,8 +151,8 @@
     <select id="me"></select>
   </div>
   <div class="row">
-    <button id="again">새 문제</button>
-    <button id="peek">답 보기</button>
+    <button class="plain" id="again">새 문제</button>
+    <button class="plain" id="peek">답 보기</button>
     <span class="hint" id="answer"></span>
   </div>
 
@@ -132,7 +164,8 @@
   <h2>삼진법 값</h2>
   <div class="hint">고르는 판에서 낸 JSON 을 붙여 넣는다</div>
   <textarea id="glyph"></textarea>
-  <div class="row"><button id="apply">먹인다</button><button id="dump">지금 값</button></div>
+  <div class="row"><button class="plain" id="apply">먹인다</button>
+    <button class="plain" id="dump">지금 값</button></div>
 
   <h2>검산</h2>
   <div class="chk" id="chk"></div>
@@ -143,9 +176,9 @@
 const $ = id => document.getElementById(id);
 const rnd = n => Math.floor(Math.random() * n);
 const pick = a => a[rnd(a.length)];
+const SHEET = "#ffffff", CAST = "#12100d";     /* 흰 판 · 먹빛 실루엣 */
 
-/* ══ 삼진법 표기 — 고르는 판(/lab/ternary)에서 가져왔다 ═══════════
-   값이 바뀌면 거기서 JSON 을 내서 아래 G 에 먹인다 */
+/* ══ 삼진법 표기 — 고르는 판(/lab/ternary)에서 가져왔다 ═══════════ */
 const G = { w:38, t:3, gap:5, dotD:14, dotG:9,
             waveN:3, waveA:4, snailD:26, turns:2,
             triW:24, triH:14,
@@ -195,7 +228,8 @@ function drawRow(r, cx, y, ink){
       : `<polygon points="${x},${y} ${x+bw},${y} ${x+bw/2},${y+G.triH}" fill="${ink}"/>`); }
   return g.join("");
 }
-/* 글리프 한 벌. { w, h, body } 로 돌려 준다 — 쓰는 쪽에서 자리를 잡는다 */
+/* 글리프 한 벌. 칠할 빛깔은 **얹히는 바탕**이 정한다 —
+   검은 추 위에서는 희게, 흰 슬롯 안에서는 먹빛으로 */
 function glyph(n, ink){
   const rows = rowsOf(n);
   if (!rows.length) return { w: G.w, h: G.dotD, body: "" };
@@ -205,57 +239,47 @@ function glyph(n, ink){
   for (const r of rows){ body += drawRow(r, w/2, y, ink); y += rowH(r)+G.gap; }
   return { w, h, body };
 }
-/* 슬롯 칸의 키는 가장 큰 글리프에 맞춰 못 박는다 */
 function glyphBox(){
   let w = 0, h = 0;
-  for (let n=0;n<=MAX;n++){ const g = glyph(n, "#000"); w = Math.max(w,g.w); h = Math.max(h,g.h); }
+  for (let n=0;n<=MAX;n++){ const g = glyph(n, CAST); w = Math.max(w,g.w); h = Math.max(h,g.h); }
   return { w, h };
 }
 
-/* ══ 문제 ════════════════════════════════════════════════════════
-   1·3·9·27 을 **그냥 더해서** 나오는 값은 쓰지 않는다 — 그런 값은
-   한쪽에 올려 놓기만 해도 풀려 버린다 */
+/* ══ 문제 ════════════════════════════════════════════════════════ */
 const UNITS = [1, 3, 9, 27];
 const SUMS = (() => { const s = new Set([0]);
   for (const u of UNITS) for (const x of [...s]) s.add(x+u);
   return s; })();
 const POOL = Array.from({length:30}, (_,i)=>i+11).filter(n => !SUMS.has(n));
-
 function newQuiz(){
-  const a = pick(POOL);
-  let b = pick(POOL);
+  const a = pick(POOL); let b = pick(POOL);
   while (b === a) b = pick(POOL);
   return [a, b];
 }
 
-/* ══ 나눠 주기 ═══════════════════════════════════════════════════
-   4종 추를 다람쥐들에게 **저마다 적어도 하나씩.** 퀴즈 추 둘은
-   추가 하나뿐인 다람쥐들이 나눠 갖는다 (2마리면 하나씩) */
+/* ══ 나눠 주기 ═══════════════════════════════════════════════════ */
 function deal(n){
   let own;
-  for (;;){                                    // 저마다 하나는 갖도록 다시 뽑는다
+  for (;;){
     own = Array.from({length:n}, () => []);
     for (const u of UNITS) own[rnd(n)].push(u);
     if (own.every(a => a.length)) break;
   }
   const thin = own.map((a,i)=>[a.length,i]).filter(([c])=>c===1).map(([,i])=>i);
-  const take = n === 2 ? [0, 1]
-             : thin.sort(() => Math.random()-.5).slice(0, 2);
-  return { own, quizOwner: take };             // quizOwner[0] 이 퀴즈 추 1 을 든다
+  const take = n === 2 ? [0, 1] : thin.sort(() => Math.random()-.5).slice(0, 2);
+  return { own, quizOwner: take };
 }
 
 /* ══ 판의 상태 ═══════════════════════════════════════════════════ */
 const S = {
   n: 4, me: 0, quiz: newQuiz(), deal: null,
-  at: {},                 /* 추 → "home" | "L" | "R" */
-  slot: [0, 0], sel: null, verdict: ""
+  at: {}, slot: [0, 0], sel: null, verdict: ""
 };
 const ALL = () => [...UNITS.map(u=>"u"+u), "q0", "q1"];
 const massOf = k => k[0]==="u" ? +k.slice(1) : S.quiz[+k[1]];
 const ownerOf = k => k[0]==="u"
   ? S.deal.own.findIndex(a => a.includes(+k.slice(1)))
   : S.deal.quizOwner[+k[1]];
-
 function reset(keepQuiz){
   S.deal = deal(S.n);
   if (!keepQuiz) S.quiz = newQuiz();
@@ -269,6 +293,7 @@ const K1 = [
   ["beam",  "들보 길이", 240, 700, 520, "px"],
   ["col",   "기둥 키",    90, 260, 170, "px"],
   ["chain", "사슬 길이",  40, 200,  96, "px"],
+  ["link",  "사슬 고리",   5,  18,   9, "px"],
   ["pan",   "접시 너비",  60, 220, 130, "px"],
   ["tilt0", "최소 기울기", 2,  14,   6, "°"],
   ["tilt1", "최대 기울기", 6,  26,  15, "°"],
@@ -278,6 +303,7 @@ const K1 = [
 const K2 = [
   ["wtW",   "추 너비",    28, 110, 62, "px"],
   ["wtH",   "추 키",      28, 120, 64, "px"],
+  ["arrow", "화살표",     20,  80, 44, "px"],
   ["slotW", "슬롯 너비",  40, 180, 92, "px"],
   ["pfp",   "프사",       24,  72, 40, "px"],
   ["spaceW","개별 공간",  90, 320,170, "px"],
@@ -296,34 +322,46 @@ function readKnobs(){
   document.documentElement.style.setProperty("--sway", V.sway+"ms");
 }
 
-/* ══ 추 하나를 그린다 — 옆에서 본 사다리꼴 ═══════════════════════ */
+/* ══ 추 하나 — 옆에서 본 사다리꼴. **검은 실루엣**이다 ══════════ */
 function weightSVG(k, cls){
   const W = V.wtW, H = V.wtH, lip = W*0.17, m = massOf(k);
-  const face = "#2a241c", edge = "#6b6256";
   let inner;
   if (k[0] === "u"){
-    const g = glyph(m, G.ink);
-    const z = Math.min(1, (W-16)/g.w, (H-18)/Math.max(g.h,1));
+    const g = glyph(m, SHEET);                  /* 먹빛 추 위라 희게 적는다 */
+    const z = Math.min(1, (W-14)/g.w, (H-16)/Math.max(g.h,1));
     inner = `<g transform="translate(${W/2 - g.w*z/2} ${H/2 - g.h*z/2}) scale(${z})">${g.body}</g>`;
   } else {
-    /* 퀴즈 추 — 아직 그림을 안 받았다. 검은 세모·오각형에 흰 물음표 */
+    /* 퀴즈 추 — 그림은 아직 안 받았다. 흰 세모·오각형에 먹빛 물음표 */
     const r = Math.min(W,H)*0.3, cx = W/2, cy = H/2+2;
     const poly = k === "q0"
       ? [[0,-r],[r*0.92,r*0.72],[-r*0.92,r*0.72]]
       : [0,1,2,3,4].map(i => { const a = -Math.PI/2 + i*2*Math.PI/5;
           return [r*Math.cos(a), r*Math.sin(a)]; });
-    inner = `<polygon points="${poly.map(([x,y])=>`${cx+x},${cy+y}`).join(" ")}" fill="#0b0a08"/>`
-          + `<text x="${cx}" y="${cy+2}" fill="#fff" font-size="${r*0.95}" font-weight="700"
+    inner = `<polygon points="${poly.map(([x,y])=>`${cx+x},${cy+y}`).join(" ")}" fill="${SHEET}"/>`
+          + `<text x="${cx}" y="${cy+3}" fill="${CAST}" font-size="${r*0.9}" font-weight="700"
              text-anchor="middle" dominant-baseline="central">?</text>`;
   }
   return `<g class="wt ${cls}" data-k="${k}">`
        + `<polygon class="body" points="${lip},2 ${W-lip},2 ${W-1},${H-2} 1,${H-2}"
-          fill="${face}" stroke="${edge}" stroke-width="2"/>${inner}</g>`;
+          fill="${CAST}" stroke="none"/>${inner}</g>`;
+}
+
+/* ══ 진짜 화살표 — 자루와 머리가 달렸다. 세모 버튼과 다른 것이다 ══ */
+function arrowPath(A){
+  const w = A*0.17, head = A*0.40, hw = A*0.34;
+  return `M ${-w} ${-A/2} L ${w} ${-A/2} L ${w} ${A/2-head}`
+       + ` L ${hw} ${A/2-head} L 0 ${A/2} L ${-hw} ${A/2-head}`
+       + ` L ${-w} ${A/2-head} Z`;
+}
+function goArrow(where, x, y){
+  if (!S.sel || S.at[S.sel] === where) return "";
+  if (ownerOf(S.sel) !== S.me) return "";
+  return `<g class="go" data-go="${where}" transform="translate(${x} ${y})">
+            <path d="${arrowPath(V.arrow)}" fill="var(--gold)"/></g>`;
 }
 
 /* ══ 저울 ════════════════════════════════════════════════════════ */
 const sideMass = s => ALL().filter(k => S.at[k] === s).reduce((a,k)=>a+massOf(k), 0);
-/* 차가 1 이라도 눈에 보이게 — 최소 기울기부터 시작한다 */
 function tiltDeg(){
   const d = sideMass("R") - sideMass("L");
   if (!d) return 0;
@@ -331,37 +369,51 @@ function tiltDeg(){
   return Math.sign(d) * (V.tilt0 + (V.tilt1-V.tilt0)*t);
 }
 
+/* 사슬 — 고리를 하나씩 그린다. 줄기를 따라 눕혀 꿴다 */
+function chainLinks(x1, y1, x2, y2){
+  const dx = x2-x1, dy = y2-y1, len = Math.hypot(dx, dy);
+  const deg = Math.atan2(dy, dx) * 180/Math.PI - 90;
+  const n = Math.max(2, Math.round(len / V.link));
+  let out = "";
+  for (let i = 0; i < n; i++){
+    const t = (i + 0.5) / n, x = x1 + dx*t, y = y1 + dy*t;
+    const rx = i % 2 ? V.link*0.34 : V.link*0.19;
+    out += `<ellipse cx="0" cy="0" rx="${rx.toFixed(2)}" ry="${(V.link*0.46).toFixed(2)}"
+      fill="none" stroke="${CAST}" stroke-width="1.6"
+      transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${deg.toFixed(1)})"/>`;
+  }
+  return out;
+}
+
 function boardSVG(){
-  const W = 880, pivot = { x: W/2, y: 70 };
-  const H = pivot.y + V.chain + V.col + 60;
+  const W = 900, pivot = { x: W/2, y: 92 };
+  const H = pivot.y + V.col + 54;
   const a = tiltDeg() * Math.PI/180, L = V.beam/2;
   const ring = s => ({ x: pivot.x + (s==="L"?-1:1)*L*Math.cos(a),
                        y: pivot.y + (s==="L"?-1:1)*L*Math.sin(a) });
-  const ink = "#d9d2c6";
 
-  /* 기둥 — 위로 솟은 장식과 아래 받침 */
-  const cw = 26, base = pivot.y + V.col;
+  /* 기둥 — 위로 솟은 장식과 아래 받침. 통째로 먹빛이다 */
+  const cw = 24;
   const column =
-    `<path d="M ${pivot.x} ${pivot.y-58} q 7 14 0 22 q 9 10 0 18 q 8 10 0 16
-       l ${cw/2} ${V.col-56} q ${cw*0.8} 10 ${cw*0.9} 22 l 0 8 l ${-cw*2.3} 0 l 0 -8
-       q 1 -12 ${cw*0.8} -22 l ${cw/2} ${-(V.col-56)} z" fill="${ink}"/>`;
+    `<path d="M ${pivot.x} ${pivot.y-66} q 7 15 0 23 q 10 11 0 19 q 9 11 0 17
+       l ${cw/2} ${V.col-59} q ${cw*0.9} 11 ${cw} 24 l 0 9 l ${-cw*2.5} 0 l 0 -9
+       q 1 -13 ${cw} -24 l ${cw/2} ${-(V.col-59)} z" fill="${CAST}"/>`;
 
   /* 들보 — 가운데가 두껍고 끝으로 갈수록 얇다. 끝에 고리가 달렸다 */
   const beam =
     `<g class="beam" transform="rotate(${tiltDeg()} ${pivot.x} ${pivot.y})">
-       <path d="M ${pivot.x-L} ${pivot.y} q ${L*0.5} -9 ${L} -11
-                q ${L*0.5} 2 ${L} 11 q ${-L*0.5} 9 ${-L} 11
-                q ${-L*0.5} -2 ${-L} -11 z" fill="${ink}"/>
-       <circle cx="${pivot.x-L}" cy="${pivot.y}" r="9" fill="none" stroke="${ink}" stroke-width="5"/>
-       <circle cx="${pivot.x+L}" cy="${pivot.y}" r="9" fill="none" stroke="${ink}" stroke-width="5"/>
+       <path d="M ${pivot.x-L} ${pivot.y} q ${L*0.5} -10 ${L} -12
+                q ${L*0.5} 2 ${L} 12 q ${-L*0.5} 10 ${-L} 12
+                q ${-L*0.5} -2 ${-L} -12 z" fill="${CAST}"/>
+       <circle cx="${pivot.x-L}" cy="${pivot.y}" r="9" fill="none" stroke="${CAST}" stroke-width="5"/>
+       <circle cx="${pivot.x+L}" cy="${pivot.y}" r="9" fill="none" stroke="${CAST}" stroke-width="5"/>
      </g>`;
 
-  /* 접시 한 벌 — 고리에서 곧게 내려와 매달린다. 접시는 늘 수평이다 */
+  /* 접시 한 벌 — 고리에서 사슬로 매달린다. 접시는 **늘 수평**이다 */
   function sling(s){
     const r = ring(s), pw = V.pan, top = r.y + V.chain;
-    const strand = f =>
-      `<line x1="${r.x}" y1="${r.y+6}" x2="${r.x+pw*f}" y2="${top}" stroke="${ink}"
-         stroke-width="2.4" stroke-dasharray="5 3.5" stroke-linecap="round"/>`;
+    const chains = [-0.78, 0, 0.78]
+      .map(f => chainLinks(r.x, r.y+7, r.x + pw*f, top)).join("");
     const load = ALL().filter(k => S.at[k] === s);
     const gap = 5, tot = load.length*V.wtW + (load.length-1)*gap;
     const wts = load.map((k,i) => {
@@ -370,59 +422,53 @@ function boardSVG(){
       return `<g transform="translate(${x} ${y})" class="${anim.k===k?anim.how:""}">`
            + weightSVG(k, (mine?"":"locked ") + (S.sel===k?"sel":"")) + `</g>`;
     }).join("");
-    return `<g class="sling" data-side="${s}">
-      ${strand(-0.8)}${strand(0)}${strand(0.8)}
-      <path d="M ${r.x-pw} ${top} a ${pw} ${pw*0.34} 0 0 0 ${pw*2} 0 z"
-            fill="${ink}"/>
-      <line x1="${r.x-pw}" y1="${top}" x2="${r.x+pw}" y2="${top}" stroke="${ink}" stroke-width="3"/>
-      ${wts}${goArrow(s, r.x, top - V.wtH - 34)}</g>`;
+    return `<g class="sling" data-side="${s}">${chains}
+      <path d="M ${r.x-pw} ${top} a ${pw} ${pw*0.33} 0 0 0 ${pw*2} 0 z" fill="${CAST}"/>
+      <rect x="${r.x-pw-2}" y="${top-3}" width="${pw*2+4}" height="4" rx="2" fill="${CAST}"/>
+      ${wts}${goArrow(s, r.x, top - V.wtH - V.arrow*0.75)}</g>`;
   }
+  /* 저울이 서는 자리는 **흰 사각형**이다 */
   return `<svg class="scale" viewBox="0 0 ${W} ${H}" height="${H}">`
+       + `<rect width="${W}" height="${H}" rx="10" fill="${SHEET}"/>`
        + column + sling("L") + sling("R") + beam + `</svg>`;
-}
-
-/* 갈 수 있는 자리에 뜨는 노란 화살표 */
-function goArrow(where, x, y){
-  if (!S.sel || S.at[S.sel] === where) return "";
-  if (ownerOf(S.sel) !== S.me) return "";
-  return `<g class="go" data-go="${where}" transform="translate(${x} ${y})">
-            <polygon points="-13,-14 13,-14 0,8" fill="var(--gold)"/></g>`;
 }
 
 /* ══ 정답 칸 ═════════════════════════════════════════════════════ */
 function slotSVG(i){
   const box = glyphBox(), pad = 14;
   const BW = box.w + pad*2, BH = box.h + pad*2;
-  const g = glyph(S.slot[i], G.ink);
+  const g = glyph(S.slot[i], CAST);             /* 흰 칸이라 먹빛으로 적는다 */
   const z = V.slotW / BW;
   return `<svg width="${V.slotW}" height="${(BH*z).toFixed(1)}" viewBox="0 0 ${BW} ${BH}">
     <g transform="translate(${BW/2-g.w/2} ${BH/2-g.h/2})">${g.body}</g></svg>`;
 }
 function answersHTML(){
+  /* 퀴즈 추 얼굴 — 추 위의 그림과 같은 것을 작게 */
   const face = i => {
-    const r = 15, cx = 20, cy = 20;
+    const r = 16, cx = 22, cy = 22;
     const poly = i === 0
       ? [[0,-r],[r*0.92,r*0.72],[-r*0.92,r*0.72]]
       : [0,1,2,3,4].map(j => { const a = -Math.PI/2 + j*2*Math.PI/5;
           return [r*Math.cos(a), r*Math.sin(a)]; });
-    return `<svg width="40" height="40">
-      <polygon points="${poly.map(([x,y])=>`${cx+x},${cy+y}`).join(" ")}" fill="#0b0a08"
-        stroke="#6b6256" stroke-width="1.5"/>
-      <text x="${cx}" y="${cy+1}" fill="#fff" font-size="15" font-weight="700"
+    return `<svg width="44" height="44">
+      <circle cx="${cx}" cy="${cy}" r="21" fill="${CAST}"/>
+      <polygon points="${poly.map(([x,y])=>`${cx+x},${cy+y}`).join(" ")}" fill="${SHEET}"/>
+      <text x="${cx}" y="${cy+2}" fill="${CAST}" font-size="15" font-weight="700"
         text-anchor="middle" dominant-baseline="central">?</text></svg>`;
   };
-  const arrow = (i, d) =>
-    `<button data-slot="${i}" data-d="${d}" style="width:34px;height:26px">
-       <svg width="18" height="12"><polygon points="${d>0?"9,0 18,12 0,12":"0,0 18,0 9,12"}"
-         fill="var(--gold)"/></svg></button>`;
+  /* 오르내림은 ys.css 의 세모 버튼 — 방향이 뜻의 일부인 자리다 */
+  const triBtn = (i, d) =>
+    `<button class="ys-tri${d>0?" down":""}" data-slot="${i}" data-d="${d}"
+       style="width:44px;height:30px">
+       <svg viewBox="0 0 44 30"><polygon points="22,4 41,26 3,26"/></svg></button>`;
   return [0,1].map(i =>
     `<div class="ans">${face(i)}
        <div class="slot" id="slot${i}">${slotSVG(i)}</div>
-       <div class="lift">${arrow(i,-1)}${arrow(i,1)}</div></div>`).join("");
+       <div class="lift">${triBtn(i,-1)}${triBtn(i,1)}</div></div>`).join("");
 }
 
-/* ══ 개별 공간 ═══════════════════════════════════════════════════ */
-/* 다람쥐 얼굴 — static/squirrels/ 의 도트 그림을 64px 로 줄여 박았다.
+/* ══ 개별 공간 ═══════════════════════════════════════════════════
+   다람쥐 얼굴 — static/squirrels/ 의 도트 그림을 64px 로 줄여 박았다.
    참말 게임에서는 파티 이름과 자리 번호로 골라진다 (squirrels.py) */
 const MUGS = [
   /* a01 */ "data:image/png;base64,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",
@@ -431,7 +477,8 @@ const MUGS = [
   /* d12 */ "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAAkFBMVEUlFxyebE+1i2vdpGPTjzalYC5SLyJhWFXfUZWnnJTpza7NrpVuRzHZ1cssoZ/xw2LrY2lIp1szr2JIPURkWqyzU5QyaZ5Shq40wG8UM15bozqYsTs3ksH28Nb07tMMBBLvxY/Kg0cIBiXHfD3HfULXm2eWVS7bo23XlVnsvIXNpYnqyqripW2NSyf79+iiWysXhvGsAAAAMHRSTlP///////////////////////////////////////////////////////////////9Ppz/1AAAG3UlEQVR42mWXi3bjKAyGwdc6djJN2+nszK4tg++J47z/2+0vgS/t6CQ5joEPSQghVClSeZGHr6/cO7ys9l5bt6pU5bfu63g/bCGiU/W99dBNMeVI5xl3QEYvVpW7Hl6Tsiw3gDR5wBnT0floQqYAONjCHeio524Cm5MkWmvlOywL9Fcvr1ZtBqYUBEFSqLTcRbnR/DmTSuLYARhHJTGAVJlB+GVKoTFJQeobwOmTktImbrUJCL1LsrTQy8srAFBE9KakNyY2Y5/S4tV2PpDHJbWJNqPWrQfon2QxPoo0Xd/eruQB/CloWf4yAfp33TgQOYD6+PlioUAURQHGK5Uy00C9buyMWFEdnYjWpBtHAbQBzLcfL5AQ4//w+DQrM9LaNAEN3TDk3g3wlfKmQD8DwBOAplW07IC3t8uF58+ob1mDuB2GgZQPlk0DAEYHMG2rLDkALLj+c7lcflte/7iNGGC6DoDSR9wWBwKIGYCVUomyPxnw6gAXS0mSABCF1D8HAXgnfAGYvmdA/3hozTHAKlzfGKAIL+O4MQD0AjhspmozwQH6/glj2yJVDPj3ern893n5ZcP28XgIYO42H2ybqSx3wPP5xPgmLhAKr210vXx+/P4FQBNDhQ1wWMZvGmB2SNPEjx5WaAA+rP38BKBtGixj//BO3FehcoAOAJVoLGPUOkCIEP7zdrVpahFEEcY3JkgQcJ1oIFtIua0MJ1rqjKYE07QtzxWzxUVK1ysmJQWruImDZOgK9oEHCMlttV5TIJ34awBo4TdKUwIKAsUYTvAC74VqBfjxkr2KFspLN7MCHip58JMTNGKa5OSzmgvl1YjFEhtpxAIHMI8eu48BTROJFuJH5dKqjNvSjQeYGjI3TgNzAGA0N01NrOmY5NSWEBfkDbRypyHGXA7wEEAM3VtpCuPY0Puyp3e1KUD0nrT1JFIbHiEayA9rHooCUx1jq9CW4qt9L6gkhJIn3nZJXY8Nm+EAbHmL0ZKS65r39JqaxQRBQf8EVp7OZK1VdwDE62IHuzVgAJoY0CLxqk0Df5IsCIHWYBLLQqe6ht2GKRLZGJ5LG2UAtKGLxHUVHCDkfuijFH4A0Gw4SxQJAPubm6jmKJG9UB2XcQfktQMErSdEJhKATfMTAwyUQq53p4nXoJJEZKLaWWDtHRrwlpTYcyagiY0AgCWgs9sEaj3zuN8XQOtjEptzBYh7PMCefSS6rUAksTodNWglLTSynt8BETTYI5GjgBpOylOQbYCYvRfiJTIJA5Qbn9YjDqBGC6A6AkIkmqG+y0TEJrBOMwuUWAEcSOjXeYBEoqSCzjThIHI/Qe51iFBs5nkFmK7m1xCepwvxBscXG+8AFms4D/MQdsyY5QeqY/CAL2ye52GVjgX5ExuiXDV4J+4yc6MbjlN2ghFeAwCmeeyYNbvxEAFUvj54p6CZh5uXPLjdsOvg96KPcVpppTTv8dtBuvmrCRToIVuXkM9BOLG+21QDoANrC3Yiba1Et2EEwC0jFyfy9jhDLQBr9fOZJLwFEdpZvqp4u6G7dTuaNwWetQ7g3mCVrBaCskmBo+Z04n/SmjMkl54YlVZOA+imkcQGcuqRN4G1TgtNMj//EWErVAe/4jn1GpSpa7yv4qasXRK6+8fT1nzPaKsX3bnwzlSiqXYpMc/zDSBRLYK3ucuYE2ogUpsP2JPw7aMbffOdy+O/ARgU+B5Th9OFNfA5kc7LOSe4AYhc8mat1DdAxqakaJzCKeZy1uIYSH2diNxwPiEUumG631FUCkAiQZRhe+45AxBSdIcFhpcAAC2nsy81FrxTXF9MzmLKUYuxCzlqbutSjB0VBS+F8vVtuZ9SmfOt8SZnEisnn8yzQI4VpCk2Hid2ttb7ars+VFwikMJ+mtcVlDVEreQ9MswhzgS83apTAWy3B2QVzdUZoRBE1qmPwlt07oSp5XAt/yqyUNFb1fcocpQOApCmIyDPOJATll5b5cv//caCc0FC9IkS76ldSN8OOkwu9DRanwgBOEVVx0LTnSyunXtoZIQbHQX7Rwe6F0Cv+b6wXntUtV6PUPtIgRg/+1hzIXYU5LC27bna4DqU7wsbwNfaJb0j/xgnQ919E2R3OWoMFzpsBVXeBg9AiLGCjQPIOobTOPrB88SVRe3KJAb0cNP5WKnyda5nQCSd5jXseDR+/H+vnwDIno/VOjvgwQA+jNvD8nNeH7bsIHUae6HHvetclVudKIDeAxrt8hnSik+CnGJ2QCMAzafzVw36XirJxukbkN0SHD+oVQeeIv4LULpr3HpBxr4vfrCEIT7yw3XVl3v34uN/u4Tu13oHCH/88AyWaARACuTycEHnEf8DgBzKQQPq1GUAAAAASUVORK5CYII="
 ];
 function pfpSVG(i){
-  return `<div class="pfp${i===S.me?" me":""}" style="width:${V.pfp}px;height:${V.pfp}px;background-image:url(${MUGS[i]})"></div>`;
+  return `<div class="pfp${i===S.me?" me":""}" style="width:${V.pfp}px;
+    height:${V.pfp}px;background-image:url(${MUGS[i]})"></div>`;
 }
 function spacesHTML(){
   return Array.from({length:S.n}, (_, i) => {
@@ -441,10 +488,12 @@ function spacesHTML(){
     const wts = load.map(k =>
       `<svg width="${V.wtW}" height="${V.wtH}">
          ${weightSVG(k, (mine?"":"locked ") + (S.sel===k?"sel":""))}</svg>`).join("");
+    const A = V.arrow;
     const go = (mine && S.sel && S.at[S.sel] !== "home")
-      ? `<svg class="go" data-go="home" width="30" height="24" style="position:absolute;
-           left:50%;bottom:-6px;transform:translateX(-50%)">
-           <polygon points="2,2 28,2 15,22" fill="var(--gold)"/></svg>` : "";
+      ? `<svg class="go" data-go="home" width="${A}" height="${A}"
+           viewBox="${-A/2} ${-A/2} ${A} ${A}" style="position:absolute;left:50%;
+           bottom:${-A*0.35}px;transform:translateX(-50%)">
+           <path d="${arrowPath(A)}" fill="var(--gold)"/></svg>` : "";
     return `<div class="me${mine?" mine":""}">
       <div class="space${mine?" mine":""}" data-i="${i}"
            style="width:${w}px;min-height:${V.wtH+18}px">${wts}${go}</div>
@@ -460,25 +509,21 @@ function render(){
   $("answers").innerHTML = answersHTML();
   $("spaces").innerHTML = spacesHTML();
   const b = $("submit");
-  b.style.width = (V.slotW+60)+"px";
-  b.style.height = "64px";
-  b.disabled = S.me !== 0;                      // 대장만 누른다
-  b.className = S.verdict;
+  b.className = "ys-btn " + (S.me !== 0 ? "cool" : S.verdict);
+  b.disabled = S.me !== 0;                      /* 대장만 누른다 */
   anim.k = null; anim.how = "";
 }
 
 /* ══ 손가락 ══════════════════════════════════════════════════════ */
 function move(k, where){
   const from = S.at[k];
-  const lifting = from !== "home" && where === "home" ;
-  const landing = where !== "home";
-  if (lifting){                                 // 접시에서 내릴 때만 먼저 띄운다
+  if (from !== "home" && where === "home"){     /* 접시에서 내릴 때만 먼저 띄운다 */
     anim.k = k; anim.how = "rise"; render();
     setTimeout(() => { S.at[k] = where; S.sel = null; S.verdict = ""; render(); }, 360);
     return;
   }
   S.at[k] = where; S.sel = null; S.verdict = "";
-  if (landing){ anim.k = k; anim.how = "drop"; }
+  if (where !== "home"){ anim.k = k; anim.how = "drop"; }
   render();
 }
 document.addEventListener("click", e => {
@@ -487,7 +532,7 @@ document.addEventListener("click", e => {
   const wt = e.target.closest(".wt");
   if (wt){
     const k = wt.dataset.k;
-    if (ownerOf(k) !== S.me) return;             // 제 추만 제가 옮긴다
+    if (ownerOf(k) !== S.me) return;             /* 제 추만 제가 옮긴다 */
     S.sel = S.sel === k ? null : k;
     render(); return;
   }
@@ -500,9 +545,9 @@ document.addEventListener("click", e => {
 });
 $("submit").onclick = () => {
   const won = S.slot[0] === S.quiz[0] && S.slot[1] === S.quiz[1];
-  S.verdict = won ? "ok" : "no";
+  S.verdict = won ? "done" : "bad";
   render();
-  if (!won) setTimeout(() => { reset(false); render(); }, 900);   // 무게를 다시 뽑는다
+  if (!won) setTimeout(() => { reset(false); render(); }, 900);
 };
 $("n").onchange = () => { S.n = +$("n").value; fillMe(); reset(false); render(); };
 $("me").onchange = () => { S.me = +$("me").value; S.sel = null; render(); };
@@ -527,13 +572,12 @@ const ok = (name, got, want) => chk.push([name,
   JSON.stringify(got) === JSON.stringify(want), got, want]);
 
 ok("문제는 스무 가지다", POOL.length, 20);
-ok("더해서 나오는 값은 문제에 안 쓴다",
-   POOL.filter(n => SUMS.has(n)).length, 0);
+ok("더해서 나오는 값은 문제에 안 쓴다", POOL.filter(n => SUMS.has(n)).length, 0);
 ok("문제 둘은 늘 서로 다르다",
    Array.from({length:300}, () => { const [a,b] = newQuiz(); return a !== b; }).every(Boolean), true);
-ok("모든 문제는 저울로 잴 수 있다",       // 균형 삼진법 — 양쪽에 놓으면 -40..40 이 다 난다
+ok("모든 문제는 저울로 잴 수 있다",
    POOL.filter(w => {
-     for (let m = 0; m < 81; m++){           // 추마다 왼쪽·오른쪽·안 씀
+     for (let m = 0; m < 81; m++){
        let v = 0;
        for (let i = 0, x = m; i < 4; i++, x = Math.floor(x/3)) v += (x%3 - 1) * UNITS[i];
        if (v === w) return false;
@@ -553,16 +597,19 @@ ok("3·4마리에서는 추 하나뿐인 다람쥐가 퀴즈 추를 든다",
    [3,4].every(n => Array.from({length:200}, () => deal(n))
      .every(t => t.quizOwner.every(i => t.own[i].length === 1))), true);
 
-/* 기울기 — 차가 1 이라도 눈에 보여야 한다 */
 reset(false); readKnobs();
 S.quiz = [11, 14]; S.at["u1"] = "R";
 ok("차가 1 이면 최소 기울기만큼 기운다", Math.abs(tiltDeg()), V.tilt0);
 S.at["u27"] = "L"; S.at["u9"] = "L"; S.at["u3"] = "L";
 ok("많이 차이 나면 최대 기울기에서 멎는다", Math.abs(tiltDeg()), V.tilt1);
-S.at["u1"] = "home"; S.at["u27"] = "home"; S.at["u9"] = "home"; S.at["u3"] = "home";
+for (const k of ["u1","u3","u9","u27"]) S.at[k] = "home";
 ok("아무것도 안 얹으면 수평이다", tiltDeg(), 0);
-ok("0 은 빈 칸이다", glyph(0, "#000").body, "");
-ok("23 은 넉 줄이다", rowsOf(23).length, 4);
+ok("0 은 빈 칸이다", glyph(0, CAST).body, "");
+ok("추는 먹빛 실루엣이다", weightSVG("u1","").includes(`fill="${CAST}"`), true);
+ok("저울이 선 자리는 흰 판이다", boardSVG().includes(`fill="${SHEET}"`), true);
+ok("화살표는 자루와 머리가 달렸다 — 꼭짓점 일곱", arrowPath(40).split(" L ").length, 7);
+ok("다람쥐 얼굴 넷을 박아 두었다",
+   MUGS.length === 4 && MUGS.every(m => m.startsWith("data:image/png;base64,")), true);
 
 $("chk").innerHTML = chk.map(([n,p,got,want]) =>
   `<div class="${p?"pass":"fail"}">${p?"✔":"✘"} ${n}`
