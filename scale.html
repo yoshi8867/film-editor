@@ -262,11 +262,7 @@ const SUMS = (() => { const s = new Set([0]);
   for (const u of UNITS) for (const x of [...s]) s.add(x+u);
   return s; })();
 const POOL = Array.from({length:30}, (_,i)=>i+11).filter(n => !SUMS.has(n));
-function newQuiz(){
-  const a = pick(POOL); let b = pick(POOL);
-  while (b === a) b = pick(POOL);
-  return [a, b];
-}
+function newQuiz(){ return [pick(POOL)]; }    /* 맞힐 것은 하나다 */
 
 /* ══ 나눠 주기 ═══════════════════════════════════════════════════ */
 function deal(n){
@@ -276,17 +272,18 @@ function deal(n){
     for (const u of UNITS) own[rnd(n)].push(u);
     if (own.every(a => a.length)) break;
   }
+  /* 퀴즈 추는 **추가 하나뿐인 다람쥐**가 든다. 그런 다람쥐가 없으면
+     (두 마리가 둘씩 나눠 가진 때) 아무나 든다 */
   const thin = own.map((a,i)=>[a.length,i]).filter(([c])=>c===1).map(([,i])=>i);
-  const take = n === 2 ? [0, 1] : thin.sort(() => Math.random()-.5).slice(0, 2);
-  return { own, quizOwner: take };
+  return { own, quizOwner: [thin.length ? pick(thin) : rnd(n)] };
 }
 
 /* ══ 판의 상태 ═══════════════════════════════════════════════════ */
 const S = {
   n: 4, me: 0, god: true, quiz: newQuiz(), deal: null,
-  at: {}, slot: [0, 0], sel: null, verdict: ""
+  at: {}, slot: [0], sel: null, verdict: ""
 };
-const ALL = () => [...UNITS.map(u=>"u"+u), "q0", "q1"];
+const ALL = () => [...UNITS.map(u=>"u"+u), "q0"];
 const massOf = k => k[0]==="u" ? +k.slice(1) : S.quiz[+k[1]];
 /* 실험실에서는 혼자 풀어 봐야 하니 넷의 추를 다 만지게 열어 둔다.
    참말 게임에서는 제 추만 제가 옮긴다 */
@@ -298,7 +295,7 @@ function reset(keepQuiz){
   S.deal = deal(S.n);
   if (!keepQuiz) S.quiz = newQuiz();
   S.at = {}; for (const k of ALL()) S.at[k] = "home";
-  S.slot = [0, 0]; S.sel = null; S.verdict = "";
+  S.slot = [0]; S.sel = null; S.verdict = "";
   if (S.me >= S.n) S.me = 0;
 }
 
@@ -510,7 +507,7 @@ function answersHTML(){
     `<button class="ys-tri${d<0?" down":""}" data-slot="${i}" data-d="${d}"
        style="width:44px;height:30px">
        <svg viewBox="0 0 44 30"><polygon points="22,4 41,26 3,26"/></svg></button>`;
-  return [0,1].map(i =>
+  return [0].map(i =>
     `<div class="ans">${face(i)}
        ${slotHTML(i)}
        <div class="lift">${triBtn(i,1)}${triBtn(i,-1)}</div></div>`).join("");
@@ -605,7 +602,7 @@ document.addEventListener("click", e => {
   if (bt){ spin(+bt.dataset.slot, +bt.dataset.d); return; }
 });
 $("submit").onclick = () => {
-  const won = S.slot[0] === S.quiz[0] && S.slot[1] === S.quiz[1];
+  const won = S.slot[0] === S.quiz[0];
   S.verdict = won ? "done" : "bad";
   render();
   if (!won) setTimeout(() => { reset(false); render(); }, 900);
@@ -635,8 +632,9 @@ const ok = (name, got, want) => chk.push([name,
 
 ok("문제는 스무 가지다", POOL.length, 20);
 ok("더해서 나오는 값은 문제에 안 쓴다", POOL.filter(n => SUMS.has(n)).length, 0);
-ok("문제 둘은 늘 서로 다르다",
-   Array.from({length:300}, () => { const [a,b] = newQuiz(); return a !== b; }).every(Boolean), true);
+ok("맞힐 것은 하나다", newQuiz().length, 1);
+ok("문제는 늘 쓸 수 있는 값에서 나온다",
+   Array.from({length:300}, () => POOL.includes(newQuiz()[0])).every(Boolean), true);
 ok("모든 문제는 저울로 잴 수 있다",
    POOL.filter(w => {
      for (let m = 0; m < 81; m++){
@@ -650,17 +648,17 @@ for (const n of [2,3,4]){
   const trials = Array.from({length:200}, () => deal(n));
   ok(`${n}마리 — 저마다 추를 적어도 하나 든다`,
      trials.every(t => t.own.every(a => a.length)), true);
-  ok(`${n}마리 — 퀴즈 추는 둘이 나눠 든다`,
-     trials.every(t => t.quizOwner.length === 2
-       && t.quizOwner[0] !== t.quizOwner[1]
-       && t.quizOwner.every(i => i >= 0 && i < n)), true);
+  ok(`${n}마리 — 퀴즈 추는 한 마리가 든다`,
+     trials.every(t => t.quizOwner.length === 1
+       && t.quizOwner[0] >= 0 && t.quizOwner[0] < n), true);
 }
-ok("3·4마리에서는 추 하나뿐인 다람쥐가 퀴즈 추를 든다",
-   [3,4].every(n => Array.from({length:200}, () => deal(n))
-     .every(t => t.quizOwner.every(i => t.own[i].length === 1))), true);
+ok("추 하나뿐인 다람쥐가 있으면 그가 퀴즈 추를 든다",
+   [2,3,4].every(n => Array.from({length:300}, () => deal(n))
+     .every(t => t.own.some(a => a.length === 1)
+       ? t.own[t.quizOwner[0]].length === 1 : true)), true);
 
 reset(false); readKnobs();
-S.quiz = [11, 14]; S.at["u1"] = "R";
+S.quiz = [11]; S.at["u1"] = "R";
 ok("차가 1 이면 최소 기울기만큼 기운다", Math.abs(tiltDeg()), V.tilt0);
 S.at["u27"] = "L"; S.at["u9"] = "L"; S.at["u3"] = "L";
 ok("많이 차이 나면 최대 기울기에서 멎는다", Math.abs(tiltDeg()), V.tilt1);
@@ -690,7 +688,8 @@ ok("올림 내림은 곧게 위아래로만 간다",
    true);
 anim.k = null; anim.how = ""; S.at["u1"] = "home";
 ok("위 세모가 수를 키운다", /data-d="1"[\s\S]*data-d="-1"/.test(answersHTML()), true);
-ok("아래로 가는 세모만 뒤집는다", (answersHTML().match(/ys-tri down/g) || []).length, 2);
+ok("아래로 가는 세모만 뒤집는다", (answersHTML().match(/ys-tri down/g) || []).length, 1);
+ok("정답 칸은 한 줄이다", (answersHTML().match(/class="ans"/g) || []).length, 1);
 ok("슬롯은 앞뒤 한 칸씩 거느린다", (slotHTML(0).match(/class="cell"/g) || []).length, 3);
 ok("칸마다 가로 칸막이를 두른다", /class="cell"/.test(cellSVG(7)), true);
 ok("다람쥐 얼굴 넷을 박아 두었다",
