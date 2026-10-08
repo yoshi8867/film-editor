@@ -303,7 +303,7 @@ const K1 = [
 const K2 = [
   ["wtW",   "추 너비",    28, 110, 62, "px"],
   ["wtH",   "추 키",      28, 120, 64, "px"],
-  ["arrow", "화살표",     20,  80, 44, "px"],
+  ["arrow", "화살표",     24, 130, 76, "px"],
   ["slotW", "슬롯 너비",  40, 180, 92, "px"],
   ["pfp",   "프사",       24,  72, 40, "px"],
   ["spaceW","개별 공간",  90, 320,170, "px"],
@@ -419,13 +419,13 @@ function boardSVG(){
     const wts = load.map((k,i) => {
       const x = r.x - tot/2 + i*(V.wtW+gap), y = top - V.wtH;
       const mine = ownerOf(k) === S.me;
-      return `<g transform="translate(${x} ${y})" class="${anim.k===k?anim.how:""}">`
-           + weightSVG(k, (mine?"":"locked ") + (S.sel===k?"sel":"")) + `</g>`;
+      return `<g transform="translate(${x} ${y})"><g class="${anim.k===k?anim.how:""}">`
+           + weightSVG(k, (mine?"":"locked ") + (S.sel===k?"sel":"")) + `</g></g>`;
     }).join("");
     return `<g class="sling" data-side="${s}">${chains}
       <path d="M ${r.x-pw} ${top} a ${pw} ${pw*0.33} 0 0 0 ${pw*2} 0 z" fill="${CAST}"/>
       <rect x="${r.x-pw-2}" y="${top-3}" width="${pw*2+4}" height="4" rx="2" fill="${CAST}"/>
-      ${wts}${goArrow(s, r.x, top - V.wtH - V.arrow*0.75)}</g>`;
+      ${wts}${goArrow(s, r.x, top - V.wtH - V.arrow*0.85)}</g>`;
   }
   /* 저울이 서는 자리는 **흰 사각형**이다 */
   return `<svg class="scale" viewBox="0 0 ${W} ${H}" height="${H}">`
@@ -492,7 +492,7 @@ function spacesHTML(){
     const go = (mine && S.sel && S.at[S.sel] !== "home")
       ? `<svg class="go" data-go="home" width="${A}" height="${A}"
            viewBox="${-A/2} ${-A/2} ${A} ${A}" style="position:absolute;left:50%;
-           bottom:${-A*0.35}px;transform:translateX(-50%)">
+           top:${-A*0.72}px;transform:translateX(-50%)">
            <path d="${arrowPath(A)}" fill="var(--gold)"/></svg>` : "";
     return `<div class="me${mine?" mine":""}">
       <div class="space${mine?" mine":""}" data-i="${i}"
@@ -608,6 +608,13 @@ ok("0 은 빈 칸이다", glyph(0, CAST).body, "");
 ok("추는 먹빛 실루엣이다", weightSVG("u1","").includes(`fill="${CAST}"`), true);
 ok("저울이 선 자리는 흰 판이다", boardSVG().includes(`fill="${SHEET}"`), true);
 ok("화살표는 자루와 머리가 달렸다 — 꼭짓점 일곱", arrowPath(40).split(" L ").length, 7);
+/* 움직이는 g 에는 제 transform 이 없어야 한다 — 있으면 CSS 가 그것을
+   덮어쓰면서 추가 옆으로 샌다 */
+ok("올림 내림은 곧게 위아래로만 간다",
+   (anim.k = "u1", anim.how = "drop", S.at["u1"] = "L",
+    /<g class="drop">/.test(boardSVG()) && !/<g transform="[^"]*" class="drop"/.test(boardSVG())),
+   true);
+anim.k = null; anim.how = ""; S.at["u1"] = "home";
 ok("다람쥐 얼굴 넷을 박아 두었다",
    MUGS.length === 4 && MUGS.every(m => m.startsWith("data:image/png;base64,")), true);
 
