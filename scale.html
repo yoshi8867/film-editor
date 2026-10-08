@@ -155,6 +155,13 @@
     <select id="me"></select>
   </div>
   <div class="row">
+    <label>손대기</label>
+    <select id="god">
+      <option value="1">다 만진다 (혼자 풀어 보기)</option>
+      <option value="0">제 추만</option>
+    </select>
+  </div>
+  <div class="row">
     <button class="plain" id="again">새 문제</button>
     <button class="plain" id="peek">답 보기</button>
     <span class="hint" id="answer"></span>
@@ -276,11 +283,14 @@ function deal(n){
 
 /* ══ 판의 상태 ═══════════════════════════════════════════════════ */
 const S = {
-  n: 4, me: 0, quiz: newQuiz(), deal: null,
+  n: 4, me: 0, god: true, quiz: newQuiz(), deal: null,
   at: {}, slot: [0, 0], sel: null, verdict: ""
 };
 const ALL = () => [...UNITS.map(u=>"u"+u), "q0", "q1"];
 const massOf = k => k[0]==="u" ? +k.slice(1) : S.quiz[+k[1]];
+/* 실험실에서는 혼자 풀어 봐야 하니 넷의 추를 다 만지게 열어 둔다.
+   참말 게임에서는 제 추만 제가 옮긴다 */
+const canTouch = k => S.god || ownerOf(k) === S.me;
 const ownerOf = k => k[0]==="u"
   ? S.deal.own.findIndex(a => a.includes(+k.slice(1)))
   : S.deal.quizOwner[+k[1]];
@@ -295,7 +305,10 @@ function reset(keepQuiz){
 /* ══ 손잡이 ══════════════════════════════════════════════════════ */
 const K1 = [
   ["beam",  "들보 길이", 240, 700, 520, "px"],
-  ["col",   "기둥 키",    90, 260, 170, "px"],
+  ["col",   "기둥 키",    90, 300, 190, "px"],
+  ["finial","꼭대기 장식", 30, 120, 62, "px"],
+  ["shaft", "기둥 굵기",  12,  56, 26, "px"],
+  ["base",  "받침 너비",  40, 180, 96, "px"],
   ["chain", "사슬 길이",  40, 200,  96, "px"],
   ["link",  "사슬 고리",   5,  18,   9, "px"],
   ["pan",   "접시 너비",  60, 220, 130, "px"],
@@ -360,7 +373,7 @@ function arrowPath(A){
 }
 function goArrow(where, x, y){
   if (!S.sel || S.at[S.sel] === where) return "";
-  if (ownerOf(S.sel) !== S.me) return "";
+  if (!canTouch(S.sel)) return "";
   return `<g class="go" data-go="${where}" transform="translate(${x} ${y})">
             <path d="${arrowPath(V.arrow)}" fill="var(--gold)"/></g>`;
 }
@@ -397,12 +410,29 @@ function boardSVG(){
   const ring = s => ({ x: pivot.x + (s==="L"?-1:1)*L*Math.cos(a),
                        y: pivot.y + (s==="L"?-1:1)*L*Math.sin(a) });
 
-  /* 기둥 — 위로 솟은 장식과 아래 받침. 통째로 먹빛이다 */
-  const cw = 24;
+  /* 기둥 — 사람이 준 그림대로 넷으로 나눠 그린다. 통째로 먹빛이다
+       꼭대기 촛대 · 구슬 셋 · 몸통(아래로 갈수록 조금 굵다) · 벌어지는 받침 */
+  const cx = pivot.x, py = pivot.y, F = V.finial;
+  const st = V.shaft/2, sb = V.shaft/2 + 5, bw = V.base/2;
+  const footH = 32, plinth = 13, bottom = py + V.col;
+  const bodyBot = bottom - plinth - footH;
   const column =
-    `<path d="M ${pivot.x} ${pivot.y-66} q 7 15 0 23 q 10 11 0 19 q 9 11 0 17
-       l ${cw/2} ${V.col-59} q ${cw*0.9} 11 ${cw} 24 l 0 9 l ${-cw*2.5} 0 l 0 -9
-       q 1 -13 ${cw} -24 l ${cw/2} ${-(V.col-59)} z" fill="${CAST}"/>`;
+    /* 뾰족한 꼭대기 */
+    `<path d="M ${cx} ${py-F} q 7 12 6 22 l -12 0 q -1 -10 6 -22 z" fill="${CAST}"/>`
+    /* 구슬 셋 — 아래로 갈수록 굵다 */
+  + [[38, 9, 7], [24, 11, 7.5], [10, 12.5, 8]]
+      .map(([up, rx, ry]) => `<ellipse cx="${cx}" cy="${py-up}" rx="${rx}" ry="${ry}" fill="${CAST}"/>`).join("")
+    /* 구슬과 몸통을 잇는 목 */
+  + `<rect x="${cx-7}" y="${py-46}" width="14" height="${46}" fill="${CAST}"/>`
+    /* 몸통 */
+  + `<path d="M ${cx-st} ${py} L ${cx+st} ${py} L ${cx+sb} ${bodyBot} L ${cx-sb} ${bodyBot} z" fill="${CAST}"/>`
+    /* 받침 — 안으로 패며 벌어졌다가 넓적한 돌로 앉는다 */
+  + `<path d="M ${cx-sb} ${bodyBot}
+       Q ${cx-sb-3} ${bodyBot+footH*0.62} ${cx-bw} ${bodyBot+footH}
+       L ${cx-bw} ${bottom-4} Q ${cx-bw} ${bottom} ${cx-bw+4} ${bottom}
+       L ${cx+bw-4} ${bottom} Q ${cx+bw} ${bottom} ${cx+bw} ${bottom-4}
+       L ${cx+bw} ${bodyBot+footH}
+       Q ${cx+sb+3} ${bodyBot+footH*0.62} ${cx+sb} ${bodyBot} z" fill="${CAST}"/>`;
 
   /* 들보 — 가운데가 두껍고 끝으로 갈수록 얇다. 끝에 고리가 달렸다 */
   const beam =
@@ -415,6 +445,9 @@ function boardSVG(){
      </g>`;
 
   /* 접시 한 벌 — 고리에서 사슬로 매달린다. 접시는 **늘 수평**이다 */
+  /* 화살표가 설 자리 — 저울을 다 그린 뒤 맨 위에 얹는다 */
+  const arrowAt = s => { const r = ring(s);
+    return [r.x, r.y + V.chain - V.wtH - V.arrow*0.85]; };
   function sling(s){
     const r = ring(s), pw = V.pan, top = r.y + V.chain;
     const chains = [-0.78, 0, 0.78]
@@ -423,26 +456,27 @@ function boardSVG(){
     const gap = 5, tot = load.length*V.wtW + (load.length-1)*gap;
     const wts = load.map((k,i) => {
       const x = r.x - tot/2 + i*(V.wtW+gap), y = top - V.wtH;
-      const mine = ownerOf(k) === S.me;
+      const mine = canTouch(k);
       return `<g transform="translate(${x} ${y})"><g class="${anim.k===k?anim.how:""}">`
            + weightSVG(k, (mine?"":"locked ") + (S.sel===k?"sel":"")) + `</g></g>`;
     }).join("");
     return `<g class="sling" data-side="${s}">${chains}
       <path d="M ${r.x-pw} ${top} a ${pw} ${pw*0.33} 0 0 0 ${pw*2} 0 z" fill="${CAST}"/>
       <rect x="${r.x-pw-2}" y="${top-3}" width="${pw*2+4}" height="4" rx="2" fill="${CAST}"/>
-      ${wts}${goArrow(s, r.x, top - V.wtH - V.arrow*0.85)}</g>`;
+      ${wts}</g>`;
   }
   /* 저울이 서는 자리는 **흰 사각형**이다 */
   return `<svg class="scale" viewBox="0 0 ${W} ${H}" height="${H}">`
        + `<rect width="${W}" height="${H}" rx="10" fill="${SHEET}"/>`
-       + column + sling("L") + sling("R") + beam + `</svg>`;
+       + column + sling("L") + sling("R") + beam
+       + goArrow("L", ...arrowAt("L")) + goArrow("R", ...arrowAt("R"))
+       + `</svg>`;
 }
 
 /* ══ 정답 칸 ═════════════════════════════════════════════════════ */
 const slotBox = () => { const b = glyphBox(), pad = 14;
   return { w: b.w + pad*2, h: b.h + pad*2 }; };
-const cellH = () => { const b = slotBox();
-  return Math.round(b.h * (V.slotW / b.w)) + 2; };   /* 칸막이 두 자리까지 */
+const cellH = () => V.slotW + 2;      /* 정사각형 + 칸막이 두 자리 */
 function cellSVG(n){
   const b = slotBox(), g = glyph(n, CAST), h = cellH();  /* 흰 칸이라 먹빛이다 */
   return `<div class="cell" style="height:${h}px">
@@ -502,9 +536,10 @@ function spacesHTML(){
     const w = Math.max(V.spaceW, load.length*(V.wtW+6)+16);
     const wts = load.map(k =>
       `<svg width="${V.wtW}" height="${V.wtH}">
-         ${weightSVG(k, (mine?"":"locked ") + (S.sel===k?"sel":""))}</svg>`).join("");
+         ${weightSVG(k, (canTouch(k)?"":"locked ") + (S.sel===k?"sel":""))}</svg>`).join("");
     const A = V.arrow;
-    const go = (mine && S.sel && S.at[S.sel] !== "home")
+    const go = (S.sel && canTouch(S.sel) && S.at[S.sel] !== "home"
+                && ownerOf(S.sel) === i)
       ? `<svg class="go" data-go="home" width="${A}" height="${A}"
            viewBox="${-A/2} ${-A/2} ${A} ${A}" style="position:absolute;left:50%;
            top:${-A*0.72}px;transform:translateX(-50%)">
@@ -524,8 +559,9 @@ function render(){
   $("answers").innerHTML = answersHTML();
   $("spaces").innerHTML = spacesHTML();
   const b = $("submit");
-  b.className = "ys-btn " + (S.me !== 0 ? "cool" : S.verdict);
-  b.disabled = S.me !== 0;                      /* 대장만 누른다 */
+  const boss = S.god || S.me === 0;             /* 참말 게임에서는 대장만 누른다 */
+  b.className = "ys-btn " + (boss ? S.verdict : "cool");
+  b.disabled = !boss;
   anim.k = null; anim.how = "";
 }
 
@@ -561,7 +597,7 @@ document.addEventListener("click", e => {
   const wt = e.target.closest(".wt");
   if (wt){
     const k = wt.dataset.k;
-    if (ownerOf(k) !== S.me) return;             /* 제 추만 제가 옮긴다 */
+    if (!canTouch(k)) return;                    /* 제 추만 제가 옮긴다 */
     S.sel = S.sel === k ? null : k;
     render(); return;
   }
@@ -576,6 +612,7 @@ $("submit").onclick = () => {
 };
 $("n").onchange = () => { S.n = +$("n").value; fillMe(); reset(false); render(); };
 $("me").onchange = () => { S.me = +$("me").value; S.sel = null; render(); };
+$("god").onchange = () => { S.god = $("god").value === "1"; S.sel = null; render(); };
 $("again").onclick = () => { reset(false); $("answer").textContent = ""; render(); };
 $("peek").onclick = () => $("answer").textContent = S.quiz.join(" · ");
 $("apply").onclick = () => {
@@ -632,6 +669,18 @@ ok("아무것도 안 얹으면 수평이다", tiltDeg(), 0);
 ok("0 은 빈 칸이다", glyph(0, CAST).body, "");
 ok("추는 먹빛 실루엣이다", weightSVG("u1","").includes(`fill="${CAST}"`), true);
 ok("저울이 선 자리는 흰 판이다", boardSVG().includes(`fill="${SHEET}"`), true);
+/* 화살표는 맨 앞에 — 들보보다 뒤에 서면 가려진다 */
+ok("화살표가 저울보다 앞에 선다",
+   (S.sel = "u1", S.at["u1"] = "home",
+    boardSVG().lastIndexOf("class=\"go\"") > boardSVG().indexOf("class=\"beam\"")), true);
+S.sel = null;
+ok("슬롯 한 칸은 정사각형이다", cellH() - 2, V.slotW);
+/* 실험실은 열어 두되, 잠그면 남의 추는 안 집힌다 */
+ok("다 만지기를 켜면 넷의 추를 다 집는다",
+   (S.god = true, ALL().every(canTouch)), true);
+ok("잠그면 제 추만 집힌다",
+   (S.god = false, S.me = 0, ALL().filter(canTouch).every(k => ownerOf(k) === 0)), true);
+S.god = true;
 ok("화살표는 자루와 머리가 달렸다 — 꼭짓점 일곱", arrowPath(40).split(" L ").length, 7);
 /* 움직이는 g 에는 제 transform 이 없어야 한다 — 있으면 CSS 가 그것을
    덮어쓰면서 추가 옆으로 샌다 */
