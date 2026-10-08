@@ -309,6 +309,8 @@ const K1 = [
   ["chain", "사슬 길이",  40, 200,  96, "px"],
   ["link",  "사슬 고리",   5,  18,   9, "px"],
   ["pan",   "접시 너비",  60, 220, 130, "px"],
+  ["panD",  "접시 깊이",   4,  60,  18, "px"],
+  ["panT",  "접시 테",     2,  10,   3, "px"],
   ["tilt0", "최소 기울기", 2,  14,   6, "°"],
   ["tilt1", "최대 기울기", 6,  26,  15, "°"],
   ["span",  "다 기우는 차", 4, 60,  20, ""],
@@ -458,8 +460,9 @@ function boardSVG(){
            + weightSVG(k, (mine?"":"locked ") + (S.sel===k?"sel":"")) + `</g></g>`;
     }).join("");
     return `<g class="sling" data-side="${s}">${chains}
-      <path d="M ${r.x-pw} ${top} a ${pw} ${pw*0.33} 0 0 0 ${pw*2} 0 z" fill="${CAST}"/>
-      <rect x="${r.x-pw-2}" y="${top-3}" width="${pw*2+4}" height="4" rx="2" fill="${CAST}"/>
+      <path d="M ${r.x-pw} ${top} a ${pw} ${V.panD} 0 0 0 ${pw*2} 0 z" fill="${CAST}"/>
+      <rect x="${r.x-pw-2}" y="${top-V.panT}" width="${pw*2+4}" height="${V.panT}"
+            rx="${V.panT/2}" fill="${CAST}"/>
       ${wts}</g>`;
   }
   /* 저울이 서는 자리는 **흰 사각형**이다 */
@@ -673,6 +676,7 @@ ok("화살표가 저울보다 앞에 선다",
     boardSVG().lastIndexOf("class=\"go\"") > boardSVG().indexOf("class=\"beam\"")), true);
 S.sel = null;
 ok("슬롯 한 칸은 정사각형이다", cellH() - 2, V.slotW);
+ok("접시는 너비보다 한참 얕다", V.panD * 3 < V.pan, true);
 /* 실험실은 열어 두되, 잠그면 남의 추는 안 집힌다 */
 ok("다 만지기를 켜면 넷의 추를 다 집는다",
    (S.god = true, ALL().every(canTouch)), true);
