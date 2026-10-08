@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>도토리 — 양팔 저울 실험실</title>
+<style>
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+
+  /* 혼자 서는 한 장이다 — ys.css 를 걸지 않고 쓰는 값만 베껴 둔다 */
+  :root{
+    --ink-900:#12100d; --ink-800:#1b1815; --ink-700:#221e1a;
+    --line:#332e28;    --line-2:#4a433a;
+    --text:#ece7de;    --dim:#8b8275;
+    --gold:#e8b339;    --gold-lit:#ffd873; --green:#3fb950; --red:#e5534b;
+    --t-xs:11.5px; --t-sm:12.5px; --t-md:14.5px; --t-lg:16px;
+    --s-2:8px; --s-3:12px; --s-4:16px; --s-6:24px;
+    --r-sm:5px;
+    --font:"Pretendard Variable",Pretendard,-apple-system,"Malgun Gothic",
+      "맑은 고딕",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none !important}
+  body{margin:0;background:var(--ink-900);color:var(--text);
+    font:var(--t-md)/1.6 var(--font);-webkit-tap-highlight-color:transparent;
+    touch-action:manipulation;
+    display:grid;grid-template-columns:1fr 330px;min-height:100vh}
+  @media (max-width:1100px){body{grid-template-columns:1fr}}
+
+  .stage{padding:var(--s-4);display:flex;flex-direction:column;
+    gap:var(--s-4);align-items:center;justify-content:flex-start}
+  .panel{border-left:1px solid var(--line);background:var(--ink-800);
+    padding:var(--s-4);display:flex;flex-direction:column;gap:var(--s-2);
+    overflow:auto;max-height:100vh;position:sticky;top:0}
+  @media (max-width:1100px){.panel{position:static;max-height:none;
+    border-left:0;border-top:1px solid var(--line)}}
+
+  h2{font-size:var(--t-sm);color:var(--dim);margin:var(--s-3) 0 0;
+    letter-spacing:.08em;text-transform:uppercase;font-weight:600}
+  .row{display:flex;align-items:center;gap:var(--s-2)}
+  .row label{flex:0 0 92px;font-size:var(--t-sm);color:var(--dim)}
+  .row input[type=range]{flex:1;accent-color:var(--gold);min-width:0}
+  .row output{flex:0 0 46px;text-align:right;font-size:var(--t-sm);
+    font-variant-numeric:tabular-nums}
+  select,button{background:var(--ink-700);color:var(--text);
+    border:1px solid var(--line-2);border-radius:var(--r-sm);
+    padding:6px 10px;font:var(--t-sm) var(--font);cursor:pointer}
+  button:hover{border-color:var(--gold)}
+  textarea{width:100%;height:110px;background:var(--ink-900);color:var(--dim);
+    border:1px solid var(--line);border-radius:var(--r-sm);padding:var(--s-2);
+    font:11px/1.5 ui-monospace,Consolas,monospace;resize:vertical}
+  .hint{font-size:var(--t-xs);color:var(--dim);line-height:1.6}
+
+  /* ── 1행 — 정답 칸과 제출 ──────────────────────────────────── */
+  .top{display:flex;align-items:center;gap:var(--s-6);flex-wrap:wrap;
+    justify-content:center}
+  .answers{display:flex;flex-direction:column;gap:var(--s-3)}
+  .ans{display:flex;align-items:center;gap:var(--s-3)}
+  .slot{background:#0b0a08;border:1px solid var(--line-2);border-radius:6px;
+    display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .lift{display:flex;flex-direction:column;gap:4px}
+  .lift button{padding:0;display:flex;align-items:center;justify-content:center;
+    background:var(--ink-700);border:1px solid var(--line-2)}
+  .lift button:active{background:var(--gold);border-color:var(--gold)}
+  #submit{background:var(--gold);color:#12100d;border:0;font-weight:700;
+    border-radius:10px;padding:0}
+  #submit[disabled]{opacity:.3;cursor:not-allowed}
+  #submit.ok{background:var(--green)} #submit.no{background:var(--red)}
+
+  /* ── 2행 — 저울 ────────────────────────────────────────────── */
+  svg.scale{display:block;width:min(100%,880px);height:auto}
+  .beam,.sling{transition:transform var(--sway,760ms) cubic-bezier(.22,1.5,.36,1)}
+  .wt{cursor:pointer}
+  .wt.locked{cursor:default;opacity:.55}
+  .wt.sel>.body{stroke:var(--gold-lit);stroke-width:3}
+  @keyframes drop{from{transform:translateY(-70px);opacity:0}}
+  @keyframes rise{to{transform:translateY(-70px);opacity:0}}
+  .drop{animation:drop 420ms cubic-bezier(.3,1.3,.5,1)}
+  .rise{animation:rise 360ms ease-in forwards}
+  .go{cursor:pointer}
+  .go:hover>polygon{fill:var(--gold-lit)}
+
+  /* ── 3행 — 개별 공간 ───────────────────────────────────────── */
+  .spaces{display:flex;gap:var(--s-4);flex-wrap:wrap;justify-content:center}
+  .me{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .space{border:2px solid var(--line-2);border-radius:14px;
+    background:var(--ink-800);display:flex;align-items:center;
+    justify-content:center;gap:6px;padding:8px;position:relative}
+  .space.mine{border-color:var(--gold)}
+  .space .go{position:absolute;inset:auto auto 4px 50%;transform:translateX(-50%)}
+  .pfp{border-radius:50%;border:2px solid var(--line-2);display:block}
+  .mine+.pfp,.me.mine .pfp{border-color:var(--gold)}
+
+  .chk{font-size:var(--t-xs);line-height:1.75}
+  .pass{color:var(--green)} .fail{color:var(--red)}
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="top">
+    <div class="answers" id="answers"></div>
+    <button id="submit">제출</button>
+  </div>
+  <div id="board"></div>
+  <div class="spaces" id="spaces"></div>
+</div>
+
+<div class="panel">
+  <h2>판</h2>
+  <div class="row">
+    <label>다람쥐</label>
+    <select id="n"><option>2</option><option>3</option><option selected>4</option></select>
+    <label style="flex:0 0 40px">나는</label>
+    <select id="me"></select>
+  </div>
+  <div class="row">
+    <button id="again">새 문제</button>
+    <button id="peek">답 보기</button>
+    <span class="hint" id="answer"></span>
+  </div>
+
+  <h2>저울</h2>
+  <div id="k1"></div>
+  <h2>추 · 칸</h2>
+  <div id="k2"></div>
+
+  <h2>삼진법 값</h2>
+  <div class="hint">고르는 판에서 낸 JSON 을 붙여 넣는다</div>
+  <textarea id="glyph"></textarea>
+  <div class="row"><button id="apply">먹인다</button><button id="dump">지금 값</button></div>
+
+  <h2>검산</h2>
+  <div class="chk" id="chk"></div>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const rnd = n => Math.floor(Math.random() * n);
+const pick = a => a[rnd(a.length)];
+
+/* ══ 삼진법 표기 — 고르는 판(/lab/ternary)에서 가져왔다 ═══════════
+   값이 바뀌면 거기서 JSON 을 내서 아래 G 에 먹인다 */
+const G = { w:38, t:3, gap:5, dotD:14, dotG:9,
+            waveN:3, waveA:4, snailD:26, turns:2,
+            triW:24, triH:14,
+            ink:"#ece7de", fill:false, cap:"round", big:"snail" };
+const MAX = 40;
+const tri = n => { const d=[]; for(let i=0,m=n;i<4;i++,m=Math.floor(m/3)) d.push(m%3); return d; };
+const rowsOf = n => { const d=tri(n), o=[];
+  if (d[0]) o.push({k:"dot", n:d[0]});
+  for (let i=0;i<d[1];i++) o.push({k:"bar"});
+  for (let i=0;i<d[2];i++) o.push({k:"wave"});
+  if (d[3]) o.push({k:"tri", n:d[3]});
+  return o; };
+const bigW = () => G.big === "snail" ? G.snailD : G.triW;
+const bigH = () => G.big === "snail" ? G.snailD : G.triH;
+const rowH = r => r.k==="dot" ? G.dotD : r.k==="bar" ? G.t
+                : r.k==="wave" ? G.waveA*2+G.t : bigH();
+const rowW = r => r.k==="dot" ? r.n*G.dotD+(r.n-1)*G.dotG
+                : r.k==="tri" ? r.n*bigW()+(r.n-1)*G.dotG : G.w;
+function snail(cx, cy, R, turns){
+  const end = turns*2*Math.PI, n = Math.ceil(turns*48);
+  let d = "";
+  for (let i=0;i<=n;i++){ const th=end*i/n, r=(R-G.t/2)*th/end;
+    d += (i?" L ":"M ")+(cx+r*Math.cos(th)).toFixed(2)+" "+(cy+r*Math.sin(th)).toFixed(2); }
+  return d;
+}
+function drawRow(r, cx, y, ink){
+  const s = `stroke="${ink}" stroke-width="${G.t}" fill="none" stroke-linecap="${G.cap}"`;
+  if (r.k === "dot"){
+    const w = rowW(r), R = G.dotD/2, g = [];
+    for (let i=0;i<r.n;i++){ const x = cx-w/2+R+i*(G.dotD+G.dotG);
+      g.push(G.fill ? `<circle cx="${x}" cy="${y+R}" r="${R}" fill="${ink}"/>`
+                    : `<circle cx="${x}" cy="${y+R}" r="${R-G.t/2}" ${s}/>`); }
+    return g.join("");
+  }
+  if (r.k === "bar"){ const y0 = y+G.t/2;
+    return `<line x1="${cx-G.w/2}" y1="${y0}" x2="${cx+G.w/2}" y2="${y0}" ${s}/>`; }
+  if (r.k === "wave"){
+    const half = G.w/(2*G.waveN), y0 = y+rowH(r)/2;
+    let p = `M ${cx-G.w/2} ${y0}`;
+    for (let i=0;i<G.waveN*2;i++) p += ` q ${half/2} ${(i%2?2:-2)*G.waveA} ${half} 0`;
+    return `<path d="${p}" ${s}/>`;
+  }
+  const w = rowW(r), bw = bigW(), g = [];
+  for (let i=0;i<r.n;i++){ const x = cx-w/2+i*(bw+G.dotG);
+    g.push(G.big === "snail"
+      ? `<path d="${snail(x+bw/2, y+bw/2, bw/2, G.turns)}" ${s}/>`
+      : `<polygon points="${x},${y} ${x+bw},${y} ${x+bw/2},${y+G.triH}" fill="${ink}"/>`); }
+  return g.join("");
+}
+/* 글리프 한 벌. { w, h, body } 로 돌려 준다 — 쓰는 쪽에서 자리를 잡는다 */
+function glyph(n, ink){
+  const rows = rowsOf(n);
+  if (!rows.length) return { w: G.w, h: G.dotD, body: "" };
+  const w = Math.max(...rows.map(rowW));
+  const h = rows.reduce((a,r)=>a+rowH(r),0) + (rows.length-1)*G.gap;
+  let y = 0, body = "";
+  for (const r of rows){ body += drawRow(r, w/2, y, ink); y += rowH(r)+G.gap; }
+  return { w, h, body };
+}
+/* 슬롯 칸의 키는 가장 큰 글리프에 맞춰 못 박는다 */
+function glyphBox(){
+  let w = 0, h = 0;
+  for (let n=0;n<=MAX;n++){ const g = glyph(n, "#000"); w = Math.max(w,g.w); h = Math.max(h,g.h); }
+  return { w, h };
+}
+
+/* ══ 문제 ════════════════════════════════════════════════════════
+   1·3·9·27 을 **그냥 더해서** 나오는 값은 쓰지 않는다 — 그런 값은
+   한쪽에 올려 놓기만 해도 풀려 버린다 */
+const UNITS = [1, 3, 9, 27];
+const SUMS = (() => { const s = new Set([0]);
+  for (const u of UNITS) for (const x of [...s]) s.add(x+u);
+  return s; })();
+const POOL = Array.from({length:30}, (_,i)=>i+11).filter(n => !SUMS.has(n));
+
+function newQuiz(){
+  const a = pick(POOL);
+  let b = pick(POOL);
+  while (b === a) b = pick(POOL);
+  return [a, b];
+}
+
+/* ══ 나눠 주기 ═══════════════════════════════════════════════════
+   4종 추를 다람쥐들에게 **저마다 적어도 하나씩.** 퀴즈 추 둘은
+   추가 하나뿐인 다람쥐들이 나눠 갖는다 (2마리면 하나씩) */
+function deal(n){
+  let own;
+  for (;;){                                    // 저마다 하나는 갖도록 다시 뽑는다
+    own = Array.from({length:n}, () => []);
+    for (const u of UNITS) own[rnd(n)].push(u);
+    if (own.every(a => a.length)) break;
+  }
+  const thin = own.map((a,i)=>[a.length,i]).filter(([c])=>c===1).map(([,i])=>i);
+  const take = n === 2 ? [0, 1]
+             : thin.sort(() => Math.random()-.5).slice(0, 2);
+  return { own, quizOwner: take };             // quizOwner[0] 이 퀴즈 추 1 을 든다
+}
+
+/* ══ 판의 상태 ═══════════════════════════════════════════════════ */
+const S = {
+  n: 4, me: 0, quiz: newQuiz(), deal: null,
+  at: {},                 /* 추 → "home" | "L" | "R" */
+  slot: [0, 0], sel: null, verdict: ""
+};
+const ALL = () => [...UNITS.map(u=>"u"+u), "q0", "q1"];
+const massOf = k => k[0]==="u" ? +k.slice(1) : S.quiz[+k[1]];
+const ownerOf = k => k[0]==="u"
+  ? S.deal.own.findIndex(a => a.includes(+k.slice(1)))
+  : S.deal.quizOwner[+k[1]];
+
+function reset(keepQuiz){
+  S.deal = deal(S.n);
+  if (!keepQuiz) S.quiz = newQuiz();
+  S.at = {}; for (const k of ALL()) S.at[k] = "home";
+  S.slot = [0, 0]; S.sel = null; S.verdict = "";
+  if (S.me >= S.n) S.me = 0;
+}
+
+/* ══ 손잡이 ══════════════════════════════════════════════════════ */
+const K1 = [
+  ["beam",  "들보 길이", 240, 700, 520, "px"],
+  ["col",   "기둥 키",    90, 260, 170, "px"],
+  ["chain", "사슬 길이",  40, 200,  96, "px"],
+  ["pan",   "접시 너비",  60, 220, 130, "px"],
+  ["tilt0", "최소 기울기", 2,  14,   6, "°"],
+  ["tilt1", "최대 기울기", 6,  26,  15, "°"],
+  ["span",  "다 기우는 차", 4, 60,  20, ""],
+  ["sway",  "흔들림",    200, 1600, 760, "ms"],
+];
+const K2 = [
+  ["wtW",   "추 너비",    28, 110, 62, "px"],
+  ["wtH",   "추 키",      28, 120, 64, "px"],
+  ["slotW", "슬롯 너비",  40, 180, 92, "px"],
+  ["pfp",   "프사",       24,  72, 40, "px"],
+  ["spaceW","개별 공간",  90, 320,170, "px"],
+];
+const V = {};
+const mkKnobs = (el, list) => el.innerHTML = list.map(([k,name,lo,hi,def,unit]) =>
+  `<div class="row"><label>${name}</label>
+   <input type="range" id="k_${k}" min="${lo}" max="${hi}" value="${def}">
+   <output id="o_${k}">${def}${unit}</output></div>`).join("");
+mkKnobs($("k1"), K1); mkKnobs($("k2"), K2);
+function readKnobs(){
+  for (const [k,,,,,unit] of [...K1, ...K2]){
+    V[k] = +$("k_"+k).value; $("o_"+k).textContent = V[k]+unit;
+  }
+  if (V.tilt1 < V.tilt0) V.tilt1 = V.tilt0;
+  document.documentElement.style.setProperty("--sway", V.sway+"ms");
+}
+
+/* ══ 추 하나를 그린다 — 옆에서 본 사다리꼴 ═══════════════════════ */
+function weightSVG(k, cls){
+  const W = V.wtW, H = V.wtH, lip = W*0.17, m = massOf(k);
+  const face = "#2a241c", edge = "#6b6256";
+  let inner;
+  if (k[0] === "u"){
+    const g = glyph(m, G.ink);
+    const z = Math.min(1, (W-16)/g.w, (H-18)/Math.max(g.h,1));
+    inner = `<g transform="translate(${W/2 - g.w*z/2} ${H/2 - g.h*z/2}) scale(${z})">${g.body}</g>`;
+  } else {
+    /* 퀴즈 추 — 아직 그림을 안 받았다. 검은 세모·오각형에 흰 물음표 */
+    const r = Math.min(W,H)*0.3, cx = W/2, cy = H/2+2;
+    const poly = k === "q0"
+      ? [[0,-r],[r*0.92,r*0.72],[-r*0.92,r*0.72]]
+      : [0,1,2,3,4].map(i => { const a = -Math.PI/2 + i*2*Math.PI/5;
+          return [r*Math.cos(a), r*Math.sin(a)]; });
+    inner = `<polygon points="${poly.map(([x,y])=>`${cx+x},${cy+y}`).join(" ")}" fill="#0b0a08"/>`
+          + `<text x="${cx}" y="${cy+2}" fill="#fff" font-size="${r*0.95}" font-weight="700"
+             text-anchor="middle" dominant-baseline="central">?</text>`;
+  }
+  return `<g class="wt ${cls}" data-k="${k}">`
+       + `<polygon class="body" points="${lip},2 ${W-lip},2 ${W-1},${H-2} 1,${H-2}"
+          fill="${face}" stroke="${edge}" stroke-width="2"/>${inner}</g>`;
+}
+
+/* ══ 저울 ════════════════════════════════════════════════════════ */
+const sideMass = s => ALL().filter(k => S.at[k] === s).reduce((a,k)=>a+massOf(k), 0);
+/* 차가 1 이라도 눈에 보이게 — 최소 기울기부터 시작한다 */
+function tiltDeg(){
+  const d = sideMass("R") - sideMass("L");
+  if (!d) return 0;
+  const t = Math.min(1, (Math.abs(d)-1)/Math.max(1, V.span-1));
+  return Math.sign(d) * (V.tilt0 + (V.tilt1-V.tilt0)*t);
+}
+
+function boardSVG(){
+  const W = 880, pivot = { x: W/2, y: 70 };
+  const H = pivot.y + V.chain + V.col + 60;
+  const a = tiltDeg() * Math.PI/180, L = V.beam/2;
+  const ring = s => ({ x: pivot.x + (s==="L"?-1:1)*L*Math.cos(a),
+                       y: pivot.y + (s==="L"?-1:1)*L*Math.sin(a) });
+  const ink = "#d9d2c6";
+
+  /* 기둥 — 위로 솟은 장식과 아래 받침 */
+  const cw = 26, base = pivot.y + V.col;
+  const column =
+    `<path d="M ${pivot.x} ${pivot.y-58} q 7 14 0 22 q 9 10 0 18 q 8 10 0 16
+       l ${cw/2} ${V.col-56} q ${cw*0.8} 10 ${cw*0.9} 22 l 0 8 l ${-cw*2.3} 0 l 0 -8
+       q 1 -12 ${cw*0.8} -22 l ${cw/2} ${-(V.col-56)} z" fill="${ink}"/>`;
+
+  /* 들보 — 가운데가 두껍고 끝으로 갈수록 얇다. 끝에 고리가 달렸다 */
+  const beam =
+    `<g class="beam" transform="rotate(${tiltDeg()} ${pivot.x} ${pivot.y})">
+       <path d="M ${pivot.x-L} ${pivot.y} q ${L*0.5} -9 ${L} -11
+                q ${L*0.5} 2 ${L} 11 q ${-L*0.5} 9 ${-L} 11
+                q ${-L*0.5} -2 ${-L} -11 z" fill="${ink}"/>
+       <circle cx="${pivot.x-L}" cy="${pivot.y}" r="9" fill="none" stroke="${ink}" stroke-width="5"/>
+       <circle cx="${pivot.x+L}" cy="${pivot.y}" r="9" fill="none" stroke="${ink}" stroke-width="5"/>
+     </g>`;
+
+  /* 접시 한 벌 — 고리에서 곧게 내려와 매달린다. 접시는 늘 수평이다 */
+  function sling(s){
+    const r = ring(s), pw = V.pan, top = r.y + V.chain;
+    const strand = f =>
+      `<line x1="${r.x}" y1="${r.y+6}" x2="${r.x+pw*f}" y2="${top}" stroke="${ink}"
+         stroke-width="2.4" stroke-dasharray="5 3.5" stroke-linecap="round"/>`;
+    const load = ALL().filter(k => S.at[k] === s);
+    const gap = 5, tot = load.length*V.wtW + (load.length-1)*gap;
+    const wts = load.map((k,i) => {
+      const x = r.x - tot/2 + i*(V.wtW+gap), y = top - V.wtH;
+      const mine = ownerOf(k) === S.me;
+      return `<g transform="translate(${x} ${y})" class="${anim.k===k?anim.how:""}">`
+           + weightSVG(k, (mine?"":"locked ") + (S.sel===k?"sel":"")) + `</g>`;
+    }).join("");
+    return `<g class="sling" data-side="${s}">
+      ${strand(-0.8)}${strand(0)}${strand(0.8)}
+      <path d="M ${r.x-pw} ${top} a ${pw} ${pw*0.34} 0 0 0 ${pw*2} 0 z"
+            fill="${ink}"/>
+      <line x1="${r.x-pw}" y1="${top}" x2="${r.x+pw}" y2="${top}" stroke="${ink}" stroke-width="3"/>
+      ${wts}${goArrow(s, r.x, top - V.wtH - 34)}</g>`;
+  }
+  return `<svg class="scale" viewBox="0 0 ${W} ${H}" height="${H}">`
+       + column + sling("L") + sling("R") + beam + `</svg>`;
+}
+
+/* 갈 수 있는 자리에 뜨는 노란 화살표 */
+function goArrow(where, x, y){
+  if (!S.sel || S.at[S.sel] === where) return "";
+  if (ownerOf(S.sel) !== S.me) return "";
+  return `<g class="go" data-go="${where}" transform="translate(${x} ${y})">
+            <polygon points="-13,-14 13,-14 0,8" fill="var(--gold)"/></g>`;
+}
+
+/* ══ 정답 칸 ═════════════════════════════════════════════════════ */
+function slotSVG(i){
+  const box = glyphBox(), pad = 14;
+  const BW = box.w + pad*2, BH = box.h + pad*2;
+  const g = glyph(S.slot[i], G.ink);
+  const z = V.slotW / BW;
+  return `<svg width="${V.slotW}" height="${(BH*z).toFixed(1)}" viewBox="0 0 ${BW} ${BH}">
+    <g transform="translate(${BW/2-g.w/2} ${BH/2-g.h/2})">${g.body}</g></svg>`;
+}
+function answersHTML(){
+  const face = i => {
+    const r = 15, cx = 20, cy = 20;
+    const poly = i === 0
+      ? [[0,-r],[r*0.92,r*0.72],[-r*0.92,r*0.72]]
+      : [0,1,2,3,4].map(j => { const a = -Math.PI/2 + j*2*Math.PI/5;
+          return [r*Math.cos(a), r*Math.sin(a)]; });
+    return `<svg width="40" height="40">
+      <polygon points="${poly.map(([x,y])=>`${cx+x},${cy+y}`).join(" ")}" fill="#0b0a08"
+        stroke="#6b6256" stroke-width="1.5"/>
+      <text x="${cx}" y="${cy+1}" fill="#fff" font-size="15" font-weight="700"
+        text-anchor="middle" dominant-baseline="central">?</text></svg>`;
+  };
+  const arrow = (i, d) =>
+    `<button data-slot="${i}" data-d="${d}" style="width:34px;height:26px">
+       <svg width="18" height="12"><polygon points="${d>0?"9,0 18,12 0,12":"0,0 18,0 9,12"}"
+         fill="var(--gold)"/></svg></button>`;
+  return [0,1].map(i =>
+    `<div class="ans">${face(i)}
+       <div class="slot" id="slot${i}">${slotSVG(i)}</div>
+       <div class="lift">${arrow(i,-1)}${arrow(i,1)}</div></div>`).join("");
+}
+
+/* ══ 개별 공간 ═══════════════════════════════════════════════════ */
+function pfpSVG(i){
+  const hue = [38, 150, 205, 320][i], d = V.pfp;
+  return `<svg class="pfp" width="${d}" height="${d}" viewBox="0 0 40 40"
+    style="background:hsl(${hue} 32% 22%);border-color:${i===S.me?"var(--gold)":"var(--line-2)"}">
+    <ellipse cx="18" cy="25" rx="9" ry="10" fill="hsl(${hue} 46% 58%)"/>
+    <circle cx="16" cy="14" r="6" fill="hsl(${hue} 46% 66%)"/>
+    <path d="M 27 30 q 10 -4 4 -17 q -2 10 -8 13 z" fill="hsl(${hue} 46% 50%)"/></svg>`;
+}
+function spacesHTML(){
+  return Array.from({length:S.n}, (_, i) => {
+    const mine = i === S.me;
+    const load = ALL().filter(k => S.at[k] === "home" && ownerOf(k) === i);
+    const w = Math.max(V.spaceW, load.length*(V.wtW+6)+16);
+    const wts = load.map(k =>
+      `<svg width="${V.wtW}" height="${V.wtH}">
+         ${weightSVG(k, (mine?"":"locked ") + (S.sel===k?"sel":""))}</svg>`).join("");
+    const go = (mine && S.sel && S.at[S.sel] !== "home")
+      ? `<svg class="go" data-go="home" width="30" height="24" style="position:absolute;
+           left:50%;bottom:-6px;transform:translateX(-50%)">
+           <polygon points="2,2 28,2 15,22" fill="var(--gold)"/></svg>` : "";
+    return `<div class="me${mine?" mine":""}">
+      <div class="space${mine?" mine":""}" data-i="${i}"
+           style="width:${w}px;min-height:${V.wtH+18}px">${wts}${go}</div>
+      ${pfpSVG(i)}</div>`;
+  }).join("");
+}
+
+/* ══ 그린다 ══════════════════════════════════════════════════════ */
+const anim = { k: null, how: "" };
+function render(){
+  readKnobs();
+  $("board").innerHTML = boardSVG();
+  $("answers").innerHTML = answersHTML();
+  $("spaces").innerHTML = spacesHTML();
+  const b = $("submit");
+  b.style.width = (V.slotW+60)+"px";
+  b.style.height = "64px";
+  b.disabled = S.me !== 0;                      // 대장만 누른다
+  b.className = S.verdict;
+  anim.k = null; anim.how = "";
+}
+
+/* ══ 손가락 ══════════════════════════════════════════════════════ */
+function move(k, where){
+  const from = S.at[k];
+  const lifting = from !== "home" && where === "home" ;
+  const landing = where !== "home";
+  if (lifting){                                 // 접시에서 내릴 때만 먼저 띄운다
+    anim.k = k; anim.how = "rise"; render();
+    setTimeout(() => { S.at[k] = where; S.sel = null; S.verdict = ""; render(); }, 360);
+    return;
+  }
+  S.at[k] = where; S.sel = null; S.verdict = "";
+  if (landing){ anim.k = k; anim.how = "drop"; }
+  render();
+}
+document.addEventListener("click", e => {
+  const go = e.target.closest(".go");
+  if (go && S.sel){ move(S.sel, go.dataset.go); return; }
+  const wt = e.target.closest(".wt");
+  if (wt){
+    const k = wt.dataset.k;
+    if (ownerOf(k) !== S.me) return;             // 제 추만 제가 옮긴다
+    S.sel = S.sel === k ? null : k;
+    render(); return;
+  }
+  const bt = e.target.closest("[data-slot]");
+  if (bt){
+    const i = +bt.dataset.slot;
+    S.slot[i] = (S.slot[i] + +bt.dataset.d + MAX + 1) % (MAX + 1);
+    S.verdict = ""; render(); return;
+  }
+});
+$("submit").onclick = () => {
+  const won = S.slot[0] === S.quiz[0] && S.slot[1] === S.quiz[1];
+  S.verdict = won ? "ok" : "no";
+  render();
+  if (!won) setTimeout(() => { reset(false); render(); }, 900);   // 무게를 다시 뽑는다
+};
+$("n").onchange = () => { S.n = +$("n").value; fillMe(); reset(false); render(); };
+$("me").onchange = () => { S.me = +$("me").value; S.sel = null; render(); };
+$("again").onclick = () => { reset(false); $("answer").textContent = ""; render(); };
+$("peek").onclick = () => $("answer").textContent = S.quiz.join(" · ");
+$("apply").onclick = () => {
+  try { Object.assign(G, JSON.parse($("glyph").value)); render(); }
+  catch (err){ $("glyph").value = "읽을 수 없는 JSON 이다 — " + err.message; }
+};
+$("dump").onclick = () => $("glyph").value = JSON.stringify(G, null, 2);
+for (const el of document.querySelectorAll("input[type=range]")) el.oninput = render;
+function fillMe(){
+  $("me").innerHTML = Array.from({length:S.n}, (_,i) =>
+    `<option value="${i}">${i===0?"대장":i+1}</option>`).join("");
+  $("me").value = String(Math.min(S.me, S.n-1));
+  S.me = +$("me").value;
+}
+
+/* ══ 검산 ════════════════════════════════════════════════════════ */
+const chk = [];
+const ok = (name, got, want) => chk.push([name,
+  JSON.stringify(got) === JSON.stringify(want), got, want]);
+
+ok("문제는 스무 가지다", POOL.length, 20);
+ok("더해서 나오는 값은 문제에 안 쓴다",
+   POOL.filter(n => SUMS.has(n)).length, 0);
+ok("문제 둘은 늘 서로 다르다",
+   Array.from({length:300}, () => { const [a,b] = newQuiz(); return a !== b; }).every(Boolean), true);
+ok("모든 문제는 저울로 잴 수 있다",       // 균형 삼진법 — 양쪽에 놓으면 -40..40 이 다 난다
+   POOL.filter(w => {
+     for (let m = 0; m < 81; m++){           // 추마다 왼쪽·오른쪽·안 씀
+       let v = 0;
+       for (let i = 0, x = m; i < 4; i++, x = Math.floor(x/3)) v += (x%3 - 1) * UNITS[i];
+       if (v === w) return false;
+     }
+     return true;
+   }).length, 0);
+for (const n of [2,3,4]){
+  const trials = Array.from({length:200}, () => deal(n));
+  ok(`${n}마리 — 저마다 추를 적어도 하나 든다`,
+     trials.every(t => t.own.every(a => a.length)), true);
+  ok(`${n}마리 — 퀴즈 추는 둘이 나눠 든다`,
+     trials.every(t => t.quizOwner.length === 2
+       && t.quizOwner[0] !== t.quizOwner[1]
+       && t.quizOwner.every(i => i >= 0 && i < n)), true);
+}
+ok("3·4마리에서는 추 하나뿐인 다람쥐가 퀴즈 추를 든다",
+   [3,4].every(n => Array.from({length:200}, () => deal(n))
+     .every(t => t.quizOwner.every(i => t.own[i].length === 1))), true);
+
+/* 기울기 — 차가 1 이라도 눈에 보여야 한다 */
+reset(false); readKnobs();
+S.quiz = [11, 14]; S.at["u1"] = "R";
+ok("차가 1 이면 최소 기울기만큼 기운다", Math.abs(tiltDeg()), V.tilt0);
+S.at["u27"] = "L"; S.at["u9"] = "L"; S.at["u3"] = "L";
+ok("많이 차이 나면 최대 기울기에서 멎는다", Math.abs(tiltDeg()), V.tilt1);
+S.at["u1"] = "home"; S.at["u27"] = "home"; S.at["u9"] = "home"; S.at["u3"] = "home";
+ok("아무것도 안 얹으면 수평이다", tiltDeg(), 0);
+ok("0 은 빈 칸이다", glyph(0, "#000").body, "");
+ok("23 은 넉 줄이다", rowsOf(23).length, 4);
+
+$("chk").innerHTML = chk.map(([n,p,got,want]) =>
+  `<div class="${p?"pass":"fail"}">${p?"✔":"✘"} ${n}`
+  + (p ? "" : ` — ${JSON.stringify(got)} ≠ ${JSON.stringify(want)}`) + `</div>`).join("")
+  + `<div class="hint" style="margin-top:6px">${chk.filter(c=>c[1]).length} / ${chk.length}</div>`;
+
+fillMe(); reset(false); render();
+</script>
+</body>
+</html>
