@@ -61,8 +61,10 @@
   .turns{display:flex;gap:var(--s-4);flex-wrap:wrap}
 
   /* 타일 — 원판 하나. 도는 것은 이 칸째다 */
-  .tile{line-height:0;transition:transform var(--spin,220ms)
-    cubic-bezier(.3,.9,.3,1)}
+  /* 도는 것은 원판째다. 튀는 움직임은 ys.css 의 --m-pop 그대로 —
+     cubic-bezier(.2,1.5,.4,1) 이 「튀어나온다」다 */
+  .tile{line-height:0;transition:transform var(--spin,300ms)
+    var(--ease,cubic-bezier(.2,1.5,.4,1))}
   .tile svg{display:block}
 
   /* 판 — 칸·램프·버튼·이름이 한 그물에 앉는다 */
@@ -298,7 +300,8 @@ const KNOB = [
   ["ringW",  "원판 테",      0,  10,   2, "px", 2],
   ["lampD",  "램프 지름",    8,  26,  12, "px"],
   ["btnD",   "단추 지름",   36,  80,  40, "px"],
-  ["spin",   "도는 시간",   80, 600, 600, "ms"],
+  ["spin",   "도는 시간",   80, 600, 300, "ms"],
+  ["pop",    "튕김",         0,  60,  50, "%"],
   ["zoom",   "크게 보기",   10,  60,  28, "배", 10],
 ];
 const V = {};
@@ -323,6 +326,8 @@ function readKnobs(){
   V.rank = $("rank").value;
   V.pair = $("pair").value;
   document.body.style.setProperty("--spin", V.spin + "ms");
+  document.body.style.setProperty("--ease",
+    `cubic-bezier(.2,${(1 + V.pop / 100).toFixed(2)},.4,1)`);
 }
 
 /* ── 원판 한 장을 그린다 ─────────────────────────────────────────
