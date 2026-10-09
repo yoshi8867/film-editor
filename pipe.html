@@ -421,7 +421,7 @@ function press(i){                           /* 0~3 열 a~d · 4~7 행 1~4 */
   if (!mine(i) || verdict === "ok") return;
   for (let m = 0; m < 4; m++) (i < 4 ? Q.G[m][i] : Q.G[i - 4][m]).n++;
   verdict = "";
-  render();
+  turn();
 }
 
 function board(){
@@ -453,7 +453,8 @@ function board(){
     out += at(3 + i, 8, btn(4 + i));
     for (let j = 0; j < 4; j++)
       out += at(3 + i, 3 + j,
-        `<div class="tile" style="transform:rotate(${Q.G[i][j].n * 90}deg)">`
+        `<div class="tile" id="t${i}${j}" `
+        + `style="transform:rotate(${Q.G[i][j].n * 90}deg)">`
         + tileSVG(Q.G[i][j].kind, D) + `</div>`);
   }
   const b = $("board");
@@ -465,6 +466,16 @@ function board(){
     + `세로 ${lab + L * 2 + D * 4 + g * 7 + B}px 든다 (폰은 342px 쯤이다)`;
 }
 
+/* 돌아가는 것만 고친다 — **칸을 다시 만들지 않는다.** 다시 만들면 새
+   요소가 처음부터 그 각도라 애니메이션이 안 걸린다 */
+function turn(){
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++){
+    const el = $("t" + i + j);
+    if (el) el.style.transform = `rotate(${Q.G[i][j].n * 90}deg)`;
+  }
+  say();
+}
+
 function render(){
   readKnobs();
   if (!Q) return;
@@ -473,6 +484,10 @@ function render(){
     sel.innerHTML = Array.from({ length: V.n }, (_, i) =>
       `<option value="${i + 1}"${i + 1 === V.me ? " selected" : ""}>${i + 1}</option>`).join("");
   board();
+  say();
+}
+
+function say(){
   const now = depthOf(Q.G, Q.tgt);
   $("say").innerHTML =
     `<span><i>처음 깊이</i> <b>${Q.depth}</b></span>`
@@ -541,7 +556,9 @@ $("send").onclick = () => {
 $("deal").onclick = deal;
 $("back").onclick = () => {
   Q.G.forEach((row, i) => row.forEach((t, j) => { t.n = Q.solved[i][j]; }));
-  verdict = ""; render();
+  const was = verdict;
+  verdict = "";
+  was ? render() : turn();                   // 녹색이던 램프는 되돌려 그린다
 };
 $("hint").onclick = () => {                  /* 값싼 한 수 — 깊이를 줄이는 단추 */
   const was = depthOf(Q.G, Q.tgt);
@@ -549,7 +566,7 @@ $("hint").onclick = () => {                  /* 값싼 한 수 — 깊이를 줄
   for (let i = 0; i < 8; i++){
     for (let m = 0; m < 4; m++) (i < 4 ? Q.G[m][i] : Q.G[i - 4][m]).n++;
     const d = depthOf(Q.G, Q.tgt);
-    if (d === was - 1){ verdict = ""; render(); return; }
+    if (d === was - 1){ verdict = ""; turn(); return; }
     for (let m = 0; m < 4; m++) (i < 4 ? Q.G[m][i] : Q.G[i - 4][m]).n += 3;
   }
 };
@@ -624,6 +641,17 @@ ok("제 단추가 아니면 안 눌린다", (() => {
   V.god = g; V.me = m;
   return not;
 })(), 6);
+ok("칸을 돌릴 때 칸을 다시 만들지 않는다 — 다시 만들면 애니메이션이 안 걸린다",
+   (() => {
+     const html = $("board").innerHTML, g = V.god;
+     V.god = true;
+     const was = $("t00").style.transform;
+     press(0);
+     const got = [$("board").innerHTML === html, $("t00").style.transform !== was];
+     for (let k = 0; k < 3; k++) press(0);          // 제자리로 돌려 놓는다
+     V.god = g;
+     return got;
+   })(), [true, true]);
 ok("네 번 누르면 제자리다", (() => {
   const was = rotAt(Q.G, 1, 1, null, null);
   for (let k = 0; k < 4; k++) for (let m = 0; m < 4; m++) Q.G[m][1].n++;
