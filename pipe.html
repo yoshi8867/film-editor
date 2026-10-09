@@ -151,6 +151,7 @@
   <div class="say" id="say"></div>
   <div class="row">
     <button id="deal">새 문제</button>
+    <button id="shake">흩어놓기</button>
     <button id="back">맞춰 놓기</button>
     <button id="hint">한 수 보기</button>
   </div>
@@ -692,7 +693,28 @@ $("board").onclick = e => {
   const b = e.target.closest(".btn");
   if (b) press(+b.dataset.i);
 };
+/* 풀린 꼴에서 다시 흩어 놓는다 — 램프 짝과 타일은 그대로다.
+   새로 뽑을 때와 같은 자를 쓴다 (이어진 짝이 없고, 깊이가 범위 안) */
+function shake(){
+  for (let t = 0; t < 300; t++){
+    Q.G.forEach((row, i) => row.forEach((tl, j) => { tl.n = Q.solved[i][j]; }));
+    let back = 0;
+    for (let k = 0; k < 8; k++){
+      const q = rnd(4);
+      back += (4 - q) % 4;
+      for (let m = 0; m < 4; m++) (k < 4 ? Q.G[m][k] : Q.G[k - 4][m]).n += q;
+    }
+    if (Q.tgt.some((_, i) => okPair(i))) continue;
+    const d = depthOf(Q.G, Q.tgt);
+    if (d < V.lo || d > V.hi) continue;
+    Q.depth = d; Q.back = back;
+    turn();
+    return true;
+  }
+  return false;                              /* 못 흩었다 — 판은 풀린 꼴이다 */
+}
 $("deal").onclick = deal;
+$("shake").onclick = shake;
 $("back").onclick = () => {
   Q.G.forEach((row, i) => row.forEach((t, j) => { t.n = Q.solved[i][j]; }));
   turn();
@@ -777,6 +799,12 @@ ok("두 길이 +자 한 칸에서 엇갈린다", (() => {
 })(), [true, true]);
 ok("새 판에는 이어진 짝이 하나도 없다",
    Q.tgt.map((_, i) => okPair(i)), Q.tgt.map(() => false));
+ok("흩어놓기도 이어진 짝을 남기지 않는다 · 깊이를 다시 잰다", (() => {
+  const was = Q.depth;
+  if (!shake()) return "못 흩었다";
+  return [Q.tgt.some((_, i) => okPair(i)), Q.depth === depthOf(Q.G, Q.tgt),
+          typeof was === "number"];
+})(), [false, true, true]);
 ok("세 짝짜리 문제도 뽑힌다", (() => {
   const q = pick(0, 9, 200, 3);
   return q ? [q.tgt.length, q.depth !== null] : "못 뽑았다";
