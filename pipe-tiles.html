@@ -133,17 +133,19 @@
   <div>
     <h2>4 × 4 판에 깔아 본 것</h2>
     <p class="hint">
-      이어진 두 쌍을 켜 둔 채로 깔았다. <b>짝이 둘이라 켜지는 빛깔도 둘</b>이다
-      — 같은 빛깔끼리 이으라는 말이다 (오른쪽 「램프 두 짝」에서 갈아 본다).
+      <b>짝이 둘이라 켜지는 빛깔도 둘</b>이다 — 같은 빛깔끼리 이으라는 말이다
+      (오른쪽 「램프 두 짝」에서 갈아 본다). <b>녹색은 아껴 둔다</b> —
+      두 짝을 다 이으면 그때 넷이 녹색으로 바뀐다.
       오른쪽·아래의 <b>금빛 단추 여덟</b>이
       그 줄을 90° 돌린다. 이름은 체스처럼 <b>열은 글자, 행은 수</b>다 —
-      넷이 「b 줄 돌려」 하고 부른다. <i>실험실에서만</i> 두 쌍이 다 이어지면
-      램프가 더 세게 빛난다.
+      넷이 「b 줄 돌려」 하고 부른다. <i>참말 게임에서는</i> 제출하기 전에
+      녹색을 보여 주지 않는다.
     </p>
     <div class="board" id="board"></div>
     <div class="row" style="margin-top:var(--s-4);justify-content:center">
       <button id="deal">새로 깔기</button>
       <button id="mix">흔들기</button>
+      <button id="back">맞춰 놓기</button>
       <span class="hint" id="state"></span>
     </div>
   </div>
@@ -156,10 +158,9 @@
   <h2>칠</h2>
   <div class="row"><label>램프 두 짝</label>
     <select id="pair">
-      <option value="gb">녹 · 파랑</option>
-      <option value="gw">녹 · 흰빛</option>
-      <option value="form">녹 하나 — 원 · 네모</option>
-      <option value="both">녹 · 파랑 + 원 · 네모</option>
+      <option value="bw">파랑 · 흰빛</option>
+      <option value="bp">파랑 · 보라</option>
+      <option value="bwf">파랑 · 흰빛 + 원 · 네모</option>
     </select></div>
   <div class="row"><label>원판 바탕</label>
     <select id="bg">
@@ -407,7 +408,7 @@ function turnIcon(D){
 
 /* ── 판 ─────────────────────────────────────────────────────────
    해를 먼저 깔고(두 쌍이 이어진 판), 거기서 되돌려 흔든다 */
-let G = null, TGT = [];
+let G = null, TGT = [], SOLVED = null;
 const rnd = n => Math.floor(Math.random() * n);
 function dealGrid(){
   const kinds = ["line", "line", "line", "bend", "bend", "bend", "bend", "plus"];
@@ -426,10 +427,20 @@ function deal(){
     const four = new Set([...ps[a], ...ps[b]].map(key));
     if (four.size !== 4) continue;
     TGT = [ps[a], ps[b]];
+    SOLVED = G.map(row => row.map(t => t.n));       // 풀린 꼴을 적어 둔다
+    shake();                                       // 거꾸로 흔들어 문제를 낸다
     return;
   }
   TGT = [];                                  // 열어 보나 마나 — 거의 없다
 }
+function shake(){
+  for (let i = 0; i < 4; i++){
+    for (let k = rnd(4); k > 0; k--) for (let m = 0; m < 4; m++) G[m][i].n++;
+    for (let k = rnd(4); k > 0; k--) for (let m = 0; m < 4; m++) G[i][m].n++;
+  }
+}
+const unshake = () =>                        // 적어 둔 풀린 꼴로 되돌린다
+  G.forEach((row, i) => row.forEach((t, j) => { t.n = SOLVED[i][j]; }));
 function press(which, i){                    // 열(c) 또는 행(r) 하나를 돌린다
   for (let k = 0; k < 4; k++){
     const t = which === "c" ? G[k][i] : G[i][k];
@@ -437,15 +448,17 @@ function press(which, i){                    // 열(c) 또는 행(r) 하나를 �
   }
   render();
 }
-/* 짝을 가르는 법. 첫 짝은 그냥 램프고(녹색), 둘째 짝만 달라진다.
-   녹색은 「켜졌다」라는 뜻을 그대로 쓰고, 파랑은 ys.css 가 비워 둔
-   하나뿐인 색이다 — 물감 판처럼 **이 판 안에서만** 사는 뜻이다 */
+/* 짝을 가르는 법 — **뜻을 지닌 색 셋(금·적·녹)은 쓰지 않는다.**
+   과제 램프는 「뜻 없는 빛」이라야 한다. 파랑은 ys.css 에 있으면서 쓰는
+   게임이 없는 하나뿐인 색이고, 흰빛은 룰렛의 흰 판처럼 색이 아닌 빛이다.
+   **녹색은 아껴 둔다** — 이어 놓았을 때 그 색으로 바뀐다 */
 const PAIR = {
-  gb:   ["", "--c:#58a6ff;--cl:#9cc9ff"],                       /* 녹 · 파랑 */
-  gw:   ["", "--c:#ece7de;--cl:#ffffff"],                       /* 녹 · 흰빛 */
-  form: ["", "border-radius:var(--r-sm)"],                      /* 원 · 네모 */
-  both: ["", "--c:#58a6ff;--cl:#9cc9ff;border-radius:var(--r-sm)"],
+  bw:   ["--c:#58a6ff;--cl:#58a6ff", "--c:#ffffff;--cl:#ffffff"],
+  bp:   ["--c:#58a6ff;--cl:#58a6ff", "--c:#a371f7;--cl:#a371f7"],
+  bwf:  ["--c:#58a6ff;--cl:#58a6ff",
+         "--c:#ffffff;--cl:#ffffff;border-radius:var(--r-sm)"],
 };
+const DONE = "--c:var(--green);--cl:var(--green-lit)";    /* 이어졌다 */
 
 const lit = () => TGT.length === 2
   && TGT.every(([a, b]) => { const o = walk(G, a); return o && key(o) === key(b); });
@@ -460,7 +473,8 @@ function board(){
   const dot = l => {
     const i = which.get(key(l)), on = i !== undefined;
     return `<div class="dot${on ? " on" : ""}${on && win ? " win" : ""}" `
-      + `style="width:${L}px;height:${L}px;${on ? PAIR[V.pair][i] : ""}"></div>`;
+      + `style="width:${L}px;height:${L}px;`
+      + `${on ? (win ? DONE : PAIR[V.pair][i]) : ""}"></div>`;
   };
   const btn = (which, i) =>
     `<button class="btn" data-w="${which}" data-i="${i}" `
@@ -521,13 +535,8 @@ $("board").onclick = e => {
   if (b) press(b.dataset.w, +b.dataset.i);
 };
 $("deal").onclick = () => { deal(); render(); };
-$("mix").onclick = () => {
-  for (let i = 0; i < 4; i++){
-    for (let k = rnd(4); k > 0; k--) for (let m = 0; m < 4; m++) G[m][i].n++;
-    for (let k = rnd(4); k > 0; k--) for (let m = 0; m < 4; m++) G[i][m].n++;
-  }
-  render();
-};
+$("mix").onclick = () => { shake(); render(); };
+$("back").onclick = () => { unshake(); render(); };
 $("reset").onclick = () => {
   for (const [k, , , , def] of KNOB) $("k_" + k).value = def;
   render();
@@ -606,12 +615,15 @@ ok("한 판에서 갈 수 있는 자리는 16384 가지다", (() => {
 ok("파이프는 원 밖으로 나가지 않는다 (잘라 낸다)",
    /clipPath/.test(tileSVG("bend", 0, 64)) && /clip-path="url/.test(tileSVG("bend", 0, 64)),
    true);
-ok("깔아 놓은 판은 두 쌍이 이어진 채로 시작한다",
-   [TGT.length, lit()], [2, true]);
+ok("거꾸로 흔든 판은 되돌려 놓으면 두 쌍이 이어진다",
+   (() => { unshake(); const got = [TGT.length, lit()]; shake(); return got; })(),
+   [2, true]);
 ok("짝 가르는 법마다 두 짝이 서로 다르게 보인다",
    Object.values(PAIR).every(([a, b]) => a !== b), true);
-ok("뜻을 지닌 색 셋은 램프에 다시 쓰지 않는다 — 금 · 적색",
-   Object.values(PAIR).flat().some(s => /e8b339|e5534b/i.test(s)), false);
+ok("뜻을 지닌 색 셋은 과제 램프에 쓰지 않는다 — 금 · 적 · 녹",
+   Object.values(PAIR).flat().some(s => /e8b339|e5534b|3fb950|--green/i.test(s)),
+   false);
+ok("녹색은 이어졌을 때만 쓴다", /--green/.test(DONE), true);
 
 $("chk").innerHTML = chk.map(([n, p, got, want]) =>
   `<div class="${p ? "pass" : "fail"}">${p ? "✔" : "✘"} <b>${n}</b>`
