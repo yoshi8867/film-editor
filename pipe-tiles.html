@@ -84,9 +84,20 @@
     box-shadow:0 0 6px var(--cl),0 0 15px var(--c),
       0 0 32px color-mix(in srgb,var(--c) 85%,transparent),
       0 0 56px color-mix(in srgb,var(--c) 50%,transparent)}
+  /* 아직 안 이어졌다 — `.ys-dot.warn` 과 같은 꼴 (적색 = 풀리지 않았다) */
+  .dot.warn{--c:var(--red);--cl:color-mix(in srgb,var(--red) 80%,#fff)}
   .dot.win{box-shadow:0 0 8px var(--cl),0 0 22px var(--c),
       0 0 48px color-mix(in srgb,var(--c) 90%,transparent),
       0 0 80px color-mix(in srgb,var(--c) 60%,transparent)}
+  /* 짝은 색이 아니라 **가락**으로 가른다 — 1짝은 숨 쉬고, 2짝은 짧게 끊는다.
+     끊는 가락은 가락 글에서 JS 가 적어 넣는다 (판 실험실과 같은 글이다) */
+  @keyframes dim{0%,100%{opacity:1}50%{opacity:.42}}
+  .dot.p0{animation:dim 3.2s ease-in-out infinite}
+  .dot.p1{animation:beat1 var(--st,2.8s) linear infinite}
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+    .dot.p1{border-radius:var(--r-sm)}      /* 가락이 멈추면 모양으로 가른다 */
+  }
 
   /* 둥근 버튼 (.ys-btn.tiny) — 처음부터 금빛이다 */
   .btn{border-radius:50%;border:2px solid var(--gold);padding:0;
@@ -112,6 +123,8 @@
 </head>
 <body>
 
+<style id="beats"></style>
+
 <div class="stage">
   <div>
     <h2>파이프 타일 — 고르는 판</h2>
@@ -135,9 +148,9 @@
   <div>
     <h2>4 × 4 판에 깔아 본 것</h2>
     <p class="hint">
-      <b>짝이 둘이라 켜지는 빛깔도 둘</b>이다 — 같은 빛깔끼리 이으라는 말이다
-      (오른쪽 「램프 두 짝」에서 갈아 본다). <b>녹색은 아껴 둔다</b> —
-      두 짝을 다 이으면 그때 넷이 녹색으로 바뀐다.
+      램프는 다 <b>적색</b>이다 — 「아직 안 이어졌다」. 짝은 색이 아니라
+      <b>가락</b>으로 가른다 (1짝은 숨 쉬듯 어두워졌다 밝아지고, 2짝은 짧게
+      끊는다). 이어진 짝은 그 자리에서 <b>녹색</b>이 되고 가락도 멈춘다.
       오른쪽·아래의 <b>금빛 단추 여덟</b>이
       그 줄을 90° 돌린다. 이름은 체스처럼 <b>열은 글자, 행은 수</b>다 —
       넷이 「b 줄 돌려」 하고 부른다. <i>참말 게임에서는</i> 제출하기 전에
@@ -158,12 +171,6 @@
   <div id="knobs"></div>
 
   <h2>칠</h2>
-  <div class="row"><label>램프 두 짝</label>
-    <select id="pair">
-      <option value="bw">파랑 · 흰빛</option>
-      <option value="bp">파랑 · 보라</option>
-      <option value="bwf">파랑 · 흰빛 + 원 · 네모</option>
-    </select></div>
   <div class="row"><label>원판 바탕</label>
     <select id="bg">
       <option value="paper">누런 종이</option>
@@ -324,7 +331,6 @@ function readKnobs(){
   V.icon = $("icon").value === "1";
   V.cw   = +$("cw").value;
   V.rank = $("rank").value;
-  V.pair = $("pair").value;
   document.body.style.setProperty("--spin", V.spin + "ms");
   document.body.style.setProperty("--ease",
     `cubic-bezier(.2,${(1 + V.pop / 100).toFixed(2)},.4,1)`);
@@ -453,17 +459,25 @@ function press(which, i){                    // 열(c) 또는 행(r) 하나를 �
   }
   turn();
 }
-/* 짝을 가르는 법 — **뜻을 지닌 색 셋(금·적·녹)은 쓰지 않는다.**
-   과제 램프는 「뜻 없는 빛」이라야 한다. 파랑은 ys.css 에 있으면서 쓰는
-   게임이 없는 하나뿐인 색이고, 흰빛은 룰렛의 흰 판처럼 색이 아닌 빛이다.
-   **녹색은 아껴 둔다** — 이어 놓았을 때 그 색으로 바뀐다 */
-const PAIR = {
-  bw:   ["--c:#58a6ff;--cl:#58a6ff", "--c:#ffffff;--cl:#ffffff"],
-  bp:   ["--c:#58a6ff;--cl:#58a6ff", "--c:#a371f7;--cl:#a371f7"],
-  bwf:  ["--c:#58a6ff;--cl:#58a6ff",
-         "--c:#ffffff;--cl:#ffffff;border-radius:var(--r-sm)"],
+/* 램프는 다 **적색**이다 — 「아직 안 이어졌다」. 이어진 짝은 그 자리에서
+   녹색이 되고 가락도 멈춘다. 짝은 색이 아니라 가락으로 가른다 */
+const BEAT = "----,,-,,--,-----,,-,,--,------";   /* `-` 켜짐 · `,` 꺼짐 */
+const UNIT = 90;                                  /* 한 칸 몇 ms 인가 */
+function beatCSS(name, pat){
+  const n = pat.length;
+  let s = `@keyframes ${name}{`;
+  for (let i = 0; i < n; i++)
+    s += `${(i / n * 100).toFixed(3)}%,${((i + 1) / n * 100 - .001).toFixed(3)}%`
+       + `{opacity:${pat[i] === "-" ? 1 : 0}}`;
+  return s + "}";
+}
+const lampClass = (done, i) => done ? "dot on win" : `dot on warn p${i}`;
+const okPair = i => {                        /* 이 짝은 이어졌나 */
+  const p = TGT[i];
+  if (!p) return false;
+  const o = walk(G, p[0]);
+  return !!o && key(o) === key(p[1]);
 };
-const DONE = "--c:var(--green);--cl:var(--green-lit)";    /* 이어졌다 */
 
 const lit = () => TGT.length === 2
   && TGT.every(([a, b]) => { const o = walk(G, a); return o && key(o) === key(b); });
@@ -472,14 +486,13 @@ function board(){
   const D = V.tileD, g = V.gap, L = V.lampD, B = V.btnD, lab = 20;
   const which = new Map();                   // 이 램프가 몇째 짝인가
   TGT.forEach((p, i) => p.forEach(l => which.set(key(l), i)));
-  const win = lit();
   const cell = (r, c, html) =>
     `<div style="grid-row:${r};grid-column:${c}">${html}</div>`;
   const dot = l => {
-    const i = which.get(key(l)), on = i !== undefined;
-    return `<div class="dot${on ? " on" : ""}${on && win ? " win" : ""}" `
+    const i = which.get(key(l));
+    return `<div class="${i === undefined ? "dot" : lampClass(okPair(i), i)}" `
       + `id="d${l.x}${l.y}${l.d}" style="width:${L}px;height:${L}px;`
-      + `${on ? (win ? DONE : PAIR[V.pair][i]) : ""}"></div>`;
+      + `${i === 1 ? `--st:${BEAT.length * UNIT}ms` : ""}"></div>`;
   };
   const btn = (which, i) =>
     `<button class="btn" data-w="${which}" data-i="${i}" `
@@ -525,17 +538,17 @@ function turn(){
   }
   paint();
 }
-function paint(){                            /* 켜진 램프 넷의 빛깔 */
-  const win = lit();
+function paint(){                            /* 켜진 램프 넷의 꼴 */
   TGT.forEach((p, i) => p.forEach(l => {
     const el = $("d" + l.x + l.y + l.d);
     if (!el) return;
-    el.className = "dot on" + (win ? " win" : "");
+    el.className = lampClass(okPair(i), i);
     el.style.cssText = `width:${V.lampD}px;height:${V.lampD}px;`
-      + (win ? DONE : PAIR[V.pair][i]);
+      + (i === 1 ? `--st:${BEAT.length * UNIT}ms` : "");
   }));
+  const n = TGT.filter((_, i) => okPair(i)).length;
   $("state").textContent = TGT.length === 2
-    ? (win ? "두 쌍이 다 이어졌다" : "아직 안 이어졌다") : "두 쌍을 못 깔았다";
+    ? `${n} / 2 쌍 이었다` : "두 쌍을 못 깔았다";
 }
 
 /* ── 다시 그린다 ─────────────────────────────────────────────── */
@@ -581,6 +594,7 @@ $("one").onclick = () => {
 
 /* ── 검산 ───────────────────────────────────────────────────────
    눌러 보지 않고도 틀린 것이 드러나야 한다 */
+$("beats").textContent = beatCSS("beat1", BEAT);
 readKnobs();
 deal();
 render();
@@ -653,12 +667,15 @@ ok("파이프는 원 밖으로 나가지 않는다 (잘라 낸다)",
 ok("거꾸로 흔든 판은 되돌려 놓으면 두 쌍이 이어진다",
    (() => { unshake(); const got = [TGT.length, lit()]; shake(); return got; })(),
    [2, true]);
-ok("짝 가르는 법마다 두 짝이 서로 다르게 보인다",
-   Object.values(PAIR).every(([a, b]) => a !== b), true);
-ok("뜻을 지닌 색 셋은 과제 램프에 쓰지 않는다 — 금 · 적 · 녹",
-   Object.values(PAIR).flat().some(s => /e8b339|e5534b|3fb950|--green/i.test(s)),
-   false);
-ok("녹색은 이어졌을 때만 쓴다", /--green/.test(DONE), true);
+ok("안 이어진 짝은 적색이고, 이어지면 녹색이 된다 — 가락도 멈춘다",
+   [lampClass(false, 0), lampClass(true, 0)], ["dot on warn p0", "dot on win"]);
+ok("두 짝의 가락이 다르다 — 숨 쉬기 · 짧게 끊기",
+   [0, 1].map(i => lampClass(false, i).split(" ").pop()), ["p0", "p1"]);
+ok("가락 글이 그대로 들어간다 — 켜짐 칸은 1, 꺼짐 칸은 0", (() => {
+  const css = beatCSS("t", "-,-");
+  return [(css.match(/opacity:1/g) || []).length,
+          (css.match(/opacity:0/g) || []).length];
+})(), [2, 1]);
 
 $("chk").innerHTML = chk.map(([n, p, got, want]) =>
   `<div class="${p ? "pass" : "fail"}">${p ? "✔" : "✘"} <b>${n}</b>`
