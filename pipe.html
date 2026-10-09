@@ -184,6 +184,13 @@
       <option value="1">한 짝이 +자를 두 방향으로 건넌다</option>
     </select></div>
   <div id="knobs2"></div>
+  <p class="hint" style="text-align:left">
+    <b>쓰는 칸</b>이 난도를 가장 잘 가른다 — 길이 지나는 칸은 각도가 못
+    박히니, 많이 쓸수록 다시 맞출 자리가 줄어든다.
+    <b>8 칸이면 쉽고</b> (깊이 4.3 · 푸는 자리 32),
+    <b>14 칸부터는 푸는 자리가 하나</b>다 (깊이 8.4).
+    규칙 때문에 <b>8 칸보다 적을 수는 없다</b>.
+  </p>
   <p class="hint" style="text-align:left" id="pool">&nbsp;</p>
 
   <h2>나눠 쥐기</h2>
@@ -434,7 +441,8 @@ function seed(k){                             // 규칙에 맞는 짝 k 개가 �
     const ch = new Map();
     /* 꼬는 길은 **맨 먼저** 깐다. 자리를 많이 쓰니 나중에 깔면 막힌다 */
     if (!tgt.every(([a, b], j) => route(ch, a, b, V.loop && j === 0))) continue;
-    return { g: fill(ch), tgt };
+    /* 통로를 놓은 칸의 수가 곧 **길이 쓰는 칸 수**다 (16 중 몇) */
+    return { g: fill(ch), tgt, cells: ch.size };
   }
   return null;
 }
@@ -444,6 +452,7 @@ function pick(lo, hi, cap, k){                // 깊이가 lo~hi 인 문제
     tries++;
     const s = seed(k || V.pairs);
     if (!s) continue;
+    if (s.cells < V.cmin || s.cells > V.cmax) continue;
     const solved = s.g.map(row => row.map(t => t.n));
     let back = 0;
     for (let k = 0; k < 8; k++){             // 거꾸로 흔든다
@@ -460,7 +469,7 @@ function pick(lo, hi, cap, k){                // 깊이가 lo~hi 인 문제
     })) continue;
     const d = depthOf(s.g, s.tgt);
     if (d === null || d < lo || d > hi) continue;
-    return { G: s.g, tgt: s.tgt, solved, depth: d, back, tries };
+    return { G: s.g, tgt: s.tgt, solved, depth: d, back, tries, cells: s.cells };
   }
   return null;
 }
@@ -480,8 +489,10 @@ const KNOB = [
   ["off",   "점멸 바닥",   0,  40,  0, "%"],
 ];
 const KNOB2 = [                              /* 문제를 뽑는 틀 */
-  ["lo", "깊이 아래", 0, 16,  0, ""],
-  ["hi", "깊이 위",   0, 16, 16, ""],
+  ["lo",   "깊이 아래",    0, 16,  0, ""],
+  ["hi",   "깊이 위",      0, 16, 16, ""],
+  ["cmin", "쓰는 칸 아래", 8, 16,  8, ""],
+  ["cmax", "쓰는 칸 위",   8, 16, 16, ""],
 ];
 const V = {};
 const slider = ([k, name, lo, hi, def, unit]) =>
@@ -513,6 +524,10 @@ function readKnobs(){
     $("o_" + k).textContent = V[k] + unit;
   }
   if (V.lo > V.hi){ V.hi = V.lo; $("k_hi").value = V.lo; $("o_hi").textContent = V.lo; }
+  if (V.cmin > V.cmax){
+    V.cmax = V.cmin;
+    $("k_cmax").value = V.cmin; $("o_cmax").textContent = V.cmin;
+  }
   V.pairs = +$("pairs").value;
   V.loop  = $("loop").value === "1";
   V.n    = +$("n").value;
@@ -659,6 +674,7 @@ function say(){
   $("say").innerHTML =
     `<span><i>처음 깊이</i> <b>${Q.depth}</b></span>`
     + `<span><i>지금 깊이</i> <b>${now}</b></span>`
+    + `<span><i>쓰는 칸</i> <b>${Q.cells}</b> / 16</span>`
     + `<span><i>푸는 자리</i> <b>${Q.count}</b> / 16384</span>`
     + `<span><i>뽑느라 버린 판</i> <b>${Q.tries - 1}</b></span>`
     + `<span><i>짝</i> <b>${Q.tgt.map(p => p.map(spot).join(" ↔ ")).join(" · ")}</b></span>`;
@@ -681,12 +697,13 @@ function deal(){
 /* ── 난도 재기 ───────────────────────────────────────────────── */
 function survey(n){
   const hist = new Array(14).fill(0);
-  let tries = 0, deep = 0;
+  let tries = 0, deep = 0, cells = 0;
   for (let i = 0; i < n; i++){
     const q = pick(0, 24, 400, V.pairs);     /* 깊이는 안 가리고 다 받는다 */
     if (!q) continue;
     tries += q.tries;
     hist[Math.min(q.depth, 13)]++;
+    cells += q.cells;
     if (q.depth >= V.lo && q.depth <= V.hi) deep++;
   }
   const all = hist.reduce((a, b) => a + b, 0), top = Math.max(...hist, 1);
@@ -701,6 +718,7 @@ function survey(n){
     + ` · 중간값 <b>${ds[Math.floor(all / 2)]}</b>`
     + ` · 가장 깊은 것 <b>${ds[all - 1]}</b>`
     + ` · 깊이 ${V.lo}~${V.hi} 가 <b>${(deep / all * 100).toFixed(0)}%</b>`
+    + ` · 쓰는 칸 평균 <b>${(cells / all).toFixed(1)}</b>/16`
     + ` · 한 판 뽑는 데 판 <b>${(tries / all).toFixed(1)}</b> 개를 본다`;
 }
 
@@ -821,6 +839,21 @@ ok("흩어놓기도 이어진 짝을 남기지 않는다 · 깊이를 다시 잰
   return [Q.tgt.some((_, i) => okPair(i)), Q.depth === depthOf(Q.G, Q.tgt),
           typeof was === "number"];
 })(), [false, true, true]);
+ok("쓰는 칸 수는 길이 참말로 지나는 칸 수다 · 여덟 칸보다 적을 수 없다",
+   (() => {
+     const q = pick(0, 24, 400, 2);
+     if (!q) return "못 뽑았다";
+     q.G.forEach((row, i) => row.forEach((t, j) => { t.n = q.solved[i][j]; }));
+     const used = new Set(q.tgt.flatMap(p => walkT(q.G, p[0]).tiles));
+     return [used.size === q.cells, q.cells >= 8];
+   })(), [true, true]);
+ok("쓰는 칸을 열다섯 이상으로 좁혀서도 뽑힌다", (() => {
+  const lo = V.cmin;
+  V.cmin = 15;
+  const q = pick(0, 24, 400, 2);
+  V.cmin = lo;
+  return q ? q.cells >= 15 : "못 뽑았다";
+})(), true);
 ok("꼬기를 켜면 한 짝이 +자 하나를 두 방향으로 건넌다", (() => {
   const was = V.loop;
   V.loop = true;
