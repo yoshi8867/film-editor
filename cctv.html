@@ -709,7 +709,7 @@ body{
   .tube svg.deep{position:absolute;inset:0;width:100%;height:100%;z-index:2}
   .tube svg.deep polygon,.tube svg.deep rect{fill:#141210}
   /* 깊이 선 — 칸이 바뀌는 자리. 몇 칸 들어가는지 세게 해 준다 */
-  .tube svg.deep rect.ring{fill:none;stroke:#9aa0a6;stroke-width:.006}
+  .tube svg.deep .ring{fill:none;stroke:#9aa0a6;stroke-width:.006}
 
   /* 평면도 — 벽은 어둡고 길은 종이다. 브라운관과 같은 종이라야
      「저 골목이 이 판의 어딘가」로 읽힌다 */
@@ -1601,6 +1601,9 @@ var YS = (function () {
       out += slab(-1, a, b, s[0]) + slab(1, a, b, s[1]);
       out += '<rect class="ring" x="' + (-b) + '" y="' + (-b) + '" width="' +
              (2 * b) + '" height="' + (2 * b) + '"/>';
+      /* 타일의 좌우 모서리 — 옆이 트였으면 옆 통로 바닥과 여기서 갈린다 */
+      out += '<path class="ring" d="M' + [-a, -a, "L", -b, -b, "M", a, -a, "L",
+             b, -b, "M", -a, a, "L", -b, b, "M", a, a, "L", b, b].join(" ") + '"/>';
       if (s[2]) {                        /* 앞이 막혔다 — 소실점을 덮는다 */
         out += '<rect x="' + (-b) + '" y="' + (-b) + '" width="' + (2 * b) +
                '" height="' + (2 * b) + '"/>';
