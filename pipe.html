@@ -198,6 +198,11 @@
       <option value="bank">문제집에서만</option>
       <option value="make">뽑아서만</option>
     </select></div>
+  <div class="row"><label>대칭</label>
+    <select id="sym">
+      <option value="0">그대로 (실험실에서는 이쪽)</option>
+      <option value="1">돌리고 뒤집어 섞는다</option>
+    </select></div>
   <div class="row"><label>램프 짝</label>
     <select id="pairs">
       <option value="2">두 짝</option><option value="3">세 짝</option>
@@ -252,6 +257,7 @@
 
   <h2>검산</h2>
   <div class="chk" id="chk"></div>
+  <p class="hint" style="text-align:left" id="loose"></p>
 </div>
 
 <script>
@@ -560,6 +566,43 @@ const BANK = [
            ["line:1", "plus:0", "bend:2", "bend:2"],
            ["bend:1", "bend:3", "bend:0", "line:1"]],
     lamp: [["d1 ↑", "a4 ↓"], ["d4 →", "a3 ←"]] },
+  { tile: [["bend:1", "bend:3", "bend:1", "bend:2"],
+           ["bend:0", "line:1", "plus:0", "bend:3"],
+           ["bend:2", "bend:1", "plus:0", "line:1"],
+           ["bend:0", "bend:3", "bend:0", "bend:2"]],
+    lamp: [["b1 ↑", "d4 ↓"], ["a3 ←", "d3 →"]] },
+  { tile: [["bend:1", "plus:0", "line:1", "bend:2"],
+           ["plus:0", "plus:0", "bend:2", "line:0"],
+           ["bend:0", "plus:0", "plus:0", "plus:0"],
+           ["bend:1", "bend:3", "bend:0", "bend:3"]],
+    lamp: [["a4 ↓", "b1 ↑"], ["d3 →", "a2 ←"]] },
+  { tile: [["plus:0", "bend:2", "bend:1", "line:1"],
+           ["bend:0", "plus:0", "plus:0", "bend:2"],
+           ["bend:1", "plus:0", "bend:3", "line:0"],
+           ["bend:0", "bend:3", "bend:1", "bend:3"]],
+    lamp: [["d1 →", "a1 ←"], ["a1 ↑", "c4 ↓"]] },
+  /* 이 하나는 위아래 짝이 **한 열에 서 있다** (c1 ↔ c4). 뽑을 때는 막는
+     꼴이지만, 사람이 짠 것은 길이 열세 칸을 돌아가므로 쉽지 않다 */
+  { tile: [["bend:2", "plus:0", "bend:0", "bend:2"],
+           ["bend:1", "bend:2", "bend:1", "bend:3"],
+           ["plus:0", "bend:3", "plus:0", "bend:3"],
+           ["bend:0", "line:1", "plus:0", "line:1"]],
+    lamp: [["c1 ↑", "c4 ↓"], ["a3 ←", "d4 →"]] },
+  { tile: [["bend:3", "bend:1", "bend:3", "bend:3"],
+           ["bend:1", "bend:3", "line:0", "plus:0"],
+           ["plus:0", "bend:2", "bend:1", "line:1"],
+           ["line:0", "bend:0", "bend:3", "line:1"]],
+    lamp: [["a3 ←", "d3 →"], ["a4 ↓", "c1 ↑"]] },
+  { tile: [["bend:1", "bend:3", "bend:1", "bend:2"],
+           ["plus:0", "bend:3", "bend:0", "plus:0"],
+           ["line:0", "bend:1", "plus:0", "bend:3"],
+           ["plus:0", "bend:3", "bend:0", "plus:0"]],
+    lamp: [["a4 ↓", "b1 ↑"], ["d2 →", "a4 ←"]] },
+  { tile: [["bend:1", "bend:0", "plus:3", "bend:2"],
+           ["line:1", "bend:1", "plus:3", "plus:2"],
+           ["bend:1", "plus:3", "bend:3", "line:2"],
+           ["plus:0", "bend:3", "plus:2", "line:2"]],
+    lamp: [["b1 ↑", "d4 ↓"], ["d2 →", "a4 ←"], ["a4 ↓", "c1 ↑"]] },
 ];
 
 /* ── 그림으로 적고 읽기 ─────────────────────────────────────────
@@ -729,15 +772,22 @@ function cellsOf(G, tgt, solved){
   return used.size;
 }
 
+/* 문제집은 **차례로** 돈다. 무작위로 집으면 이미 본 것이 또 나와,
+   새 문제를 찾아 뒤질 때 헷갈린다 */
+let bankAt = 0;
 function fromBank(){
-  for (let t = 0; t < 80; t++){
-    const i = rnd(BANK.length), raw = BANK[i], one = fromText(raw);
+  for (let t = 0; t < BANK.length * 3; t++){
+    const i = bankAt % BANK.length;
+    bankAt = (bankAt + 1) % BANK.length;
+    const raw = BANK[i], one = fromText(raw);
     if (one.tgt.length !== V.pairs) continue;
-    /* 여덟 꼴 중 **규칙에 맞는 것만** 쓴다. 「열이 바뀌어야 한다」는 자가
-       위아래 짝에만 걸려 있어, 한 행에 가로로 누운 짝을 대각으로 뒤집으면
-       한 열에 선 짝이 되어 자에 걸린다. 그런 꼴은 건너뛴다 */
-    const s = shuffle([0, 1, 2, 3, 4, 5, 6, 7])
-      .find(k => symmetry(one.G, one.tgt, k).tgt.every(([a, b]) => far(a, b)));
+    /* 대칭을 섞을 때는 여덟 꼴 중 **규칙에 맞는 것만** 쓴다.
+       「열이 바뀌어야 한다」는 자가 위아래 짝에만 걸려 있어, 한 행에 누운
+       가로 짝을 대각으로 뒤집으면 한 열에 선 짝이 되어 자에 걸린다.
+       적힌 것이 이미 자를 어겼다면(사람이 그런 것은 그냥 둔다) 안 가린다 */
+    const strict = one.tgt.every(([a, b]) => far(a, b));
+    const s = !V.sym ? 0 : shuffle([0, 1, 2, 3, 4, 5, 6, 7]).find(k =>
+      !strict || symmetry(one.G, one.tgt, k).tgt.every(([a, b]) => far(a, b)));
     if (s === undefined) continue;
     const { g, tgt, name } = symmetry(one.G, one.tgt, s);
     const solved = solvedOf(g, tgt);
@@ -745,7 +795,7 @@ function fromBank(){
     const cells = cellsOf(g, tgt, solved);
     if (cells < V.cmin || cells > V.cmax) continue;
     const q = { G: g, tgt, solved, cells, count: 0, tries: t + 1,
-                from: `문제집 ${i + 1}번 · ${name}` };
+                from: `문제집 ${i + 1}번` + (V.sym ? ` · ${name}` : "") };
     q.depth = depthOf(g, tgt);
     q.back = q.depth;
     const pre = tgt.some(([a, b]) => {
@@ -818,6 +868,7 @@ function readKnobs(){
   V.pairs = +$("pairs").value;
   V.loop  = $("loop").value === "1";
   V.src   = $("src").value;
+  V.sym   = $("sym").value === "1";
   V.n    = +$("n").value;
   V.god  = $("god").value === "1";
   V.me   = Math.min(+($("me").value || 1), V.n);
@@ -1190,18 +1241,24 @@ ok("성치 않은 그림은 까닭을 알려 준다", [
 ], ["string", "string"]);
 ok("상자 글자 일곱이 타일 일곱에 그대로 맞는다",
    [...ART_BACK.keys()].length, 7);
-ok("문제집에 적힌 것이 다 성하다 — 짝이 이어지고 규칙에 맞는다", (() => {
-  const bad = [];
+ok("문제집에 적힌 것이 다 성하다 — 짝이 이어지고 램프가 짝을 짓는다", (() => {
+  const bad = [], loose = [];
   BANK.forEach((raw, i) => {
     const { G, tgt } = fromText(raw);
     const solved = solvedOf(G, tgt);
     if (!solved) return bad.push(i + 1 + " 풀 수 없다");
-    if (!tgt.every(([a, b]) => far(a, b))) bad.push(i + 1 + " 짝이 가깝다");
+    /* 「열이 바뀐다」는 뽑을 때 쓰는 자다. 사람이 짠 것은 어겨도 받는다 */
+    if (!tgt.every(([a, b]) => far(a, b))) loose.push(i + 1);
     const cells = cellsOf(G, tgt, solved);
     if (cells < 8) bad.push(i + 1 + " 칸이 " + cells);
     if (tgt.length === 2 && new Set(tgt.flat().map(l => l.d)).size !== 4)
       bad.push(i + 1 + " 네 면을 안 쓴다");
+    if (new Set(tgt.flat().map(key)).size !== tgt.length * 2)
+      bad.push(i + 1 + " 램프가 겹친다");
   });
+  $("loose").textContent = loose.length
+    ? `문제집 ${loose.join("·")}번은 「열이 바뀐다」를 어긴 짝이 있다 `
+      + `(사람이 짠 것이라 그냥 쓴다)` : "";
   return bad;
 })(), []);
 ok("한 행에 누운 가로 짝은 대각으로 뒤집으면 자에 걸린다 — 그 꼴은 안 쓴다",
