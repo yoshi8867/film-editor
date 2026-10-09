@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>도토리 — 파이프 잇기 실험실</title>
+<style>
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+
+  /* 이 페이지는 **혼자 선다.** 깃헙 페이지스에 한 장으로 올라간다 */
+  :root{
+    --ink-900:#12100d; --ink-800:#1b1815; --ink-700:#221e1a;
+    --line:#332e28;    --line-2:#4a433a;
+    --text:#ece7de;    --dim:#8b8275;    --faint:#463f37;
+    --gold:#e8b339;    --gold-lit:#ffd873;
+    --green:#3fb950;   --green-lit:#8ae79a; --red:#e5534b;
+    --paper:hsl(44 32% 74%);
+    --t-xs:11.5px; --t-sm:12.5px; --t-md:14.5px; --t-lg:16px; --t-2xl:25px;
+    --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-6:24px;
+    --r-sm:5px; --r-md:10px; --m-state:180ms ease; --m-lamp:70ms linear;
+    --font:"Pretendard Variable",Pretendard,-apple-system,"Malgun Gothic",
+      "맑은 고딕",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none !important}
+  body{margin:0;background:var(--ink-900);color:var(--text);
+    font:var(--t-md)/1.6 var(--font);-webkit-tap-highlight-color:transparent;
+    display:grid;grid-template-columns:1fr 320px;min-height:100vh}
+  @media (max-width:1040px){body{grid-template-columns:1fr}}
+
+  .stage{padding:var(--s-6);display:flex;flex-direction:column;
+    gap:var(--s-6);align-items:center}
+  .panel{border-left:1px solid var(--line);background:var(--ink-800);
+    padding:var(--s-4);display:flex;flex-direction:column;gap:var(--s-3);
+    overflow:auto;max-height:100vh;position:sticky;top:0}
+  @media (max-width:1040px){.panel{position:static;max-height:none;
+    border-left:0;border-top:1px solid var(--line)}}
+
+  h2{font-size:var(--t-sm);color:var(--dim);margin:0;letter-spacing:.08em;
+    text-transform:uppercase;font-weight:600}
+  .row{display:flex;align-items:center;gap:var(--s-2)}
+  .row label{flex:0 0 88px;font-size:var(--t-sm);color:var(--dim)}
+  .row input[type=range]{flex:1;accent-color:var(--gold)}
+  .row output{flex:0 0 46px;text-align:right;font-size:var(--t-sm);
+    font-variant-numeric:tabular-nums}
+  select,button,input[type=number]{background:var(--ink-700);color:var(--text);
+    border:1px solid var(--line-2);border-radius:var(--r-sm);
+    padding:6px 10px;font:var(--t-sm) var(--font)}
+  button{cursor:pointer}
+  button:hover{border-color:var(--gold)}
+  textarea{width:100%;height:110px;background:var(--ink-900);color:var(--dim);
+    border:1px solid var(--line);border-radius:var(--r-sm);padding:var(--s-2);
+    font:11px/1.5 ui-monospace,Consolas,monospace;resize:vertical}
+  .hint{font-size:var(--t-sm);color:var(--dim);margin:0;text-align:center}
+  .hint b{color:var(--text);font-weight:600}
+  .wide{width:min(560px,100%)}
+
+  /* 판 — 칸·램프·단추·이름이 한 그물에 앉는다 */
+  .board{display:grid;justify-content:center;align-items:center;
+    justify-items:center}
+  .name{font-style:normal;font-size:var(--t-sm);color:var(--dim);
+    font-variant-numeric:tabular-nums}
+  /* 도는 것은 원판째다. 튀는 움직임은 ys.css 의 --m-pop 그대로 */
+  .tile{line-height:0;transition:transform var(--spin,300ms)
+    var(--ease,cubic-bezier(.2,1.5,.4,1))}
+  .tile svg{display:block}
+
+  /* 소통용 램프 (.ys-dot). 켜지는 빛깔은 짝마다 --c/--cl 로 갈린다 */
+  .dot{--c:var(--green);--cl:var(--green-lit);
+    border-radius:50%;flex:none;background:var(--ink-700);
+    border:1px solid var(--line);
+    transition:background var(--m-lamp),border-color var(--m-lamp),
+      box-shadow var(--m-lamp)}
+  .dot.on{background:var(--cl);border-color:var(--cl);
+    box-shadow:0 0 6px var(--cl),0 0 15px var(--c),
+      0 0 32px color-mix(in srgb,var(--c) 85%,transparent),
+      0 0 56px color-mix(in srgb,var(--c) 50%,transparent)}
+  .dot.win{box-shadow:0 0 8px var(--cl),0 0 22px var(--c),
+      0 0 48px color-mix(in srgb,var(--c) 90%,transparent),
+      0 0 80px color-mix(in srgb,var(--c) 60%,transparent)}
+
+  /* 둥근 버튼 (.ys-btn). 속은 비운다 */
+  .btn{border-radius:50%;border:2px solid var(--gold);padding:0;
+    background:radial-gradient(circle at 50% 38%,
+      color-mix(in srgb,var(--gold) 13%,var(--ink-800)),
+      color-mix(in srgb,var(--gold) 5%,var(--ink-900)));
+    color:var(--gold);cursor:pointer;position:relative;touch-action:none;
+    transition:transform 80ms,border-color var(--m-state),
+      background var(--m-state),color var(--m-state)}
+  .btn:active{transform:scale(.955)}
+  /* 남의 단추 — 자리만 비워 둔다 (.ys-hand.none 과 같은 뜻) */
+  .btn.none{visibility:hidden}
+  .btn.done{border-color:var(--green);color:var(--green);cursor:default;
+    background:radial-gradient(circle at 50% 38%,
+      color-mix(in srgb,var(--green) 12%,var(--ink-800)),
+      color-mix(in srgb,var(--green) 5%,var(--ink-900)))}
+  .btn.bad{border-color:var(--red);color:var(--red)}
+
+  /* 문제 한 줄 */
+  .say{display:flex;gap:var(--s-4);flex-wrap:wrap;justify-content:center;
+    font-size:var(--t-sm);font-variant-numeric:tabular-nums}
+  .say b{color:var(--text);font-weight:600}
+  .say i{font-style:normal;color:var(--dim)}
+
+  /* 깊이 분포 막대 */
+  .bars{display:flex;align-items:flex-end;gap:3px;height:96px;
+    width:min(560px,100%)}
+  .bars > div{flex:1;display:flex;flex-direction:column;
+    justify-content:flex-end;align-items:center;gap:3px;height:100%}
+  .bars u{display:block;width:100%;background:var(--line-2);
+    border-radius:3px 3px 0 0;text-decoration:none}
+  .bars u.pick{background:var(--gold)}
+  .bars span{font-size:var(--t-xs);color:var(--dim);
+    font-variant-numeric:tabular-nums}
+
+  .chk{font-size:var(--t-xs);line-height:1.8}
+  .chk b{font-weight:600}
+  .pass{color:var(--green)} .fail{color:var(--red)}
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="board" id="board"></div>
+
+  <div class="row" style="gap:var(--s-4)">
+    <button class="btn" id="send" style="width:96px;height:96px"
+      title="제출 — 대장 다람쥐만 누른다"></button>
+  </div>
+  <p class="hint" id="verdict">&nbsp;</p>
+
+  <div class="say" id="say"></div>
+  <div class="row">
+    <button id="deal">새 문제</button>
+    <button id="back">맞춰 놓기</button>
+    <button id="hint">한 수 보기</button>
+  </div>
+
+  <div class="wide">
+    <h2>난도 — 깊이 분포</h2>
+    <p class="hint">
+      깊이는 <b>목표와 지금 사이의 최소 누름 수</b>다. 4<sup>8</sup> 가지를
+      값싼 것부터 다 눌러 보고 처음 풀리는 데까지 센다.
+      금빛이 지금 받기로 한 범위다.
+    </p>
+    <div class="bars" id="bars"></div>
+    <p class="hint" id="stat">&nbsp;</p>
+    <div class="row" style="justify-content:center">
+      <button id="run100">백 판 뽑아 보기</button>
+      <button id="run400">사백 판</button>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>문제</h2>
+  <div id="knobs2"></div>
+  <p class="hint" style="text-align:left" id="pool">&nbsp;</p>
+
+  <h2>나눠 쥐기</h2>
+  <div class="row"><label>마리 수</label>
+    <select id="n"><option>2</option><option>3</option>
+      <option selected>4</option></select></div>
+  <div class="row"><label>나는</label>
+    <select id="me"></select></div>
+  <div class="row"><label>손대기</label>
+    <select id="god">
+      <option value="1">다 만진다 (혼자 풀어 보기)</option>
+      <option value="0">제 단추만</option>
+    </select></div>
+
+  <h2>보임새</h2>
+  <div id="knobs"></div>
+  <div class="row"><label>램프 두 짝</label>
+    <select id="pair">
+      <option value="bw">파랑 · 흰색</option>
+      <option value="bp">파랑 · 보라</option>
+      <option value="bwf">파랑 · 흰색 + 원 · 네모</option>
+    </select></div>
+  <p class="hint" style="text-align:left" id="size">&nbsp;</p>
+
+  <h2>내보내기</h2>
+  <div class="row">
+    <button id="dump">이 문제 JSON</button>
+    <button id="reset">되돌린다</button>
+  </div>
+  <textarea id="out" readonly></textarea>
+
+  <h2>검산</h2>
+  <div class="chk" id="chk"></div>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+
+/* ── 파이프의 규칙 ───────────────────────────────────────────────
+   칸 하나는 「어느 쪽끼리 통하나」로만 정해진다. +자는 통로가 둘이고
+   서로 섞이지 않는다 — 그래서 흐름이 꺾이지 않는다 */
+const N = 0, E = 1, S = 2, W = 3;
+const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0], OPP = [2, 3, 0, 1];
+const CH = { line: [[N, S]], bend: [[N, E]], plus: [[N, S], [E, W]] };
+const KINDS = ["line", "bend", "plus"];
+const chans = (k, rot) => CH[k].map(([a, b]) => [(a + rot) % 4, (b + rot) % 4]);
+function thru(k, rot, side){
+  for (const [a, b] of chans(k, rot)){
+    if (a === side) return b;
+    if (b === side) return a;
+  }
+  return -1;                                 // 벽이다
+}
+
+/* 램프 — 테두리 칸의 바깥 면마다 하나. 열둘 칸에 열여섯 개 */
+const LAMPS = [];
+for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) for (let d = 0; d < 4; d++){
+  const nx = x + DX[d], ny = y + DY[d];
+  if (nx < 0 || nx > 3 || ny < 0 || ny > 3) LAMPS.push({ x, y, d });
+}
+const key = l => l.x + "," + l.y + "," + l.d;
+const FILE = "abcd";
+const spot = l => FILE[l.x] + (l.y + 1) + " " + "↑→↓←"[l.d];
+
+/* 칸의 각 = 쌓인 누름 + (그 열 누름) + (그 행 누름). 더하기라 순서를
+   가리지 않는다 — 그래서 갈 수 있는 자리가 4⁸ 이 아니라 16384 다 */
+const rotAt = (G, x, y, c, r) =>
+  (((G[y][x].n + (c ? c[x] : 0) + (r ? r[y] : 0)) % 4) + 4) % 4;
+
+function walk(G, lamp, c, r){
+  let x = lamp.x, y = lamp.y, side = lamp.d;
+  for (let i = 0; i < 64; i++){
+    const out = thru(G[y][x].kind, rotAt(G, x, y, c, r), side);
+    if (out < 0) return null;
+    const nx = x + DX[out], ny = y + DY[out];
+    if (nx < 0 || nx > 3 || ny < 0 || ny > 3) return { x, y, d: out };
+    x = nx; y = ny; side = OPP[out];
+  }
+  return null;
+}
+function allPairs(G, c, r){
+  const seen = new Set(), out = [];
+  for (const l of LAMPS){
+    if (seen.has(key(l))) continue;
+    const o = walk(G, l, c, r);
+    if (o && key(o) !== key(l)){ seen.add(key(l)); seen.add(key(o)); out.push([l, o]); }
+  }
+  return out;
+}
+function solves(G, tgt, c, r){
+  for (const [a, b] of tgt){
+    const o = walk(G, a, c, r);
+    if (!o || key(o) !== key(b)) return false;
+  }
+  return true;
+}
+
+/* ── 깊이 ───────────────────────────────────────────────────────
+   누름 벡터 하나가 열 넷·행 넷의 누름 횟수다 (저마다 0~3). 값싼 것부터
+   훑어 처음 풀리는 데서 멈춘다. 되돌리는 값은 세 번이라 비싸다 */
+const COST = new Uint8Array(65536);
+for (let v = 0; v < 65536; v++){
+  let s = 0;
+  for (let i = 0; i < 8; i++) s += (v >> (2 * i)) & 3;
+  COST[v] = s;
+}
+const ORDER = Uint16Array.from({ length: 65536 }, (_, i) => i)
+  .sort((a, b) => COST[a] - COST[b]);
+const CB = [0, 0, 0, 0], RB = [0, 0, 0, 0];
+function load(v){
+  for (let i = 0; i < 4; i++){
+    CB[i] = (v >> (2 * i)) & 3;
+    RB[i] = (v >> (8 + 2 * i)) & 3;
+  }
+}
+function depthOf(G, tgt){
+  for (let i = 0; i < 65536; i++){
+    const v = ORDER[i];
+    load(v);
+    if (solves(G, tgt, CB, RB)) return COST[v];
+  }
+  return null;                               // 있을 수 없다
+}
+function countOf(G, tgt){                    // 푸는 자리가 몇 개인가
+  let n = 0;
+  for (let v = 0; v < 65536; v++){ load(v); if (solves(G, tgt, CB, RB)) n++; }
+  return n / 4;                              // 네 겹으로 겹친다
+}
+
+/* ── 문제 뽑기 ───────────────────────────────────────────────────
+   **해를 먼저 깐다.** 두 짝이 이어진 판을 찾고, 거기서 거꾸로 흔든다.
+   흔든 것을 되돌리는 길이 있으니 늘 풀린다. 그러고 나서 깊이를 재어
+   바라는 범위가 아니면 버린다 — 깊이는 흔든 값보다 얕을 수 있다 */
+const rnd = n => Math.floor(Math.random() * n);
+const MIX = ["line", "line", "line", "bend", "bend", "bend", "bend", "plus"];
+function rawGrid(){
+  return Array.from({ length: 4 }, () =>
+    Array.from({ length: 4 }, () => ({ kind: MIX[rnd(MIX.length)], n: rnd(4) })));
+}
+function seed(){                             // 두 짝이 이어진 판 하나
+  for (let i = 0; i < 300; i++){
+    const g = rawGrid(), ps = allPairs(g);
+    if (ps.length < 2) continue;
+    const a = rnd(ps.length);
+    let b = rnd(ps.length);
+    if (a === b) b = (b + 1) % ps.length;
+    const tgt = [ps[a], ps[b]];
+    if (new Set(tgt.flat().map(key)).size !== 4) continue;
+    return { g, tgt };
+  }
+  return null;
+}
+function pick(lo, hi, cap){                  // 깊이가 lo~hi 인 문제
+  let tries = 0;
+  for (let i = 0; i < (cap || 400); i++){
+    tries++;
+    const s = seed();
+    if (!s) continue;
+    const solved = s.g.map(row => row.map(t => t.n));
+    let back = 0;
+    for (let k = 0; k < 8; k++){             // 거꾸로 흔든다
+      const q = rnd(4);
+      back += (4 - q) % 4;                   // 되돌리는 값 — 세 번은 비싸다
+      for (let m = 0; m < 4; m++)
+        (k < 4 ? s.g[m][k] : s.g[k - 4][m]).n += q;
+    }
+    const d = depthOf(s.g, s.tgt);
+    if (d === null || d < lo || d > hi) continue;
+    return { G: s.g, tgt: s.tgt, solved, depth: d, back, tries };
+  }
+  return null;
+}
+
+/* ── 손잡이 ──────────────────────────────────────────────────── */
+const KNOB = [
+  ["tileD", "원판 지름", 40, 120, 83, "px"],
+  ["gap",   "칸 틈",      0,  16,  2, "px"],
+  ["pipe",  "파이프 굵기", 4, 34, 19, "px"],
+  ["lampD", "램프 지름",   8,  26, 12, "px"],
+  ["btnD",  "단추 지름",  36,  80, 40, "px"],
+  ["spin",  "도는 시간",  80, 600, 300, "ms"],
+  ["pop",   "튕김",        0,  60, 50, "%"],
+];
+const KNOB2 = [                              /* 문제를 뽑는 틀 */
+  ["lo", "깊이 아래", 0, 9, 4, ""],
+  ["hi", "깊이 위",   0, 9, 9, ""],
+];
+const V = {};
+const slider = ([k, name, lo, hi, def, unit]) =>
+  `<div class="row"><label>${name}</label>
+   <input type="range" id="k_${k}" min="${lo}" max="${hi}" value="${def}">
+   <output id="o_${k}">${def}${unit}</output></div>`;
+$("knobs").innerHTML = KNOB.map(slider).join("");
+$("knobs2").innerHTML = KNOB2.map(slider).join("");
+
+/* 짝을 가르는 빛깔. 뜻을 지닌 색 셋(금·적·녹)은 과제 램프에 쓰지 않는다 */
+const PAIR = {
+  bw:  ["--c:#58a6ff;--cl:#58a6ff", "--c:#ffffff;--cl:#ffffff"],
+  bp:  ["--c:#58a6ff;--cl:#58a6ff", "--c:#a371f7;--cl:#a371f7"],
+  bwf: ["--c:#58a6ff;--cl:#58a6ff",
+        "--c:#ffffff;--cl:#ffffff;border-radius:var(--r-sm)"],
+};
+const DONE = "--c:var(--green);--cl:var(--green-lit)";
+
+/* 원판의 생김새는 다 잡혔다 — 고르는 판에서 고른 값이다 */
+const T = { bend: 49, cross: 1, ringW: 1, bg: "hsl(44 32% 74%)",
+            ink: "#12100d", ring: "rgba(0,0,0,.22)" };
+
+function readKnobs(){
+  for (const [k, , , , , unit] of KNOB.concat(KNOB2)){
+    V[k] = +$("k_" + k).value;
+    $("o_" + k).textContent = V[k] + unit;
+  }
+  if (V.lo > V.hi){ V.hi = V.lo; $("k_hi").value = V.lo; $("o_hi").textContent = V.lo; }
+  V.pair = $("pair").value;
+  V.n    = +$("n").value;
+  V.god  = $("god").value === "1";
+  V.me   = Math.min(+($("me").value || 1), V.n);
+  document.body.style.setProperty("--spin", V.spin + "ms");
+  document.body.style.setProperty("--ease",
+    `cubic-bezier(.2,${(1 + V.pop / 100).toFixed(2)},.4,1)`);
+}
+
+/* ── 원판 한 장 ─────────────────────────────────────────────────
+   파이프는 원 안에 머문다 (clipPath). 그러지 않으면 꺾이는 자리의
+   모서리가 원 밖으로 삐죽 나온다 */
+let uid = 0;
+function tileSVG(kind, D){
+  const c = D / 2, R = D / 2, pw = Math.min(V.pipe, D * 0.6), id = "cp" + (++uid);
+  const line = (d, w, col) => `<path d="${d}" fill="none" stroke="${col}" `
+    + `stroke-width="${w}" stroke-linecap="butt" stroke-linejoin="round"/>`;
+  const end = D;
+  let body = "";
+  if (kind === "line"){
+    body = line(`M ${c} ${c - end} L ${c} ${c + end}`, pw, T.ink);
+  } else if (kind === "bend"){
+    const k = T.bend / 100 * (c - pw / 4);
+    body = line(`M ${c} ${c - end} L ${c} ${c - k} Q ${c} ${c} ${c + k} ${c} `
+              + `L ${c + end} ${c}`, pw, T.ink);
+  } else {
+    /* 한쪽이 위로 지나가는 다리 — 「여기서는 안 꺾인다」를 글자 없이 알린다 */
+    body = line(`M ${c - end} ${c} L ${c + end} ${c}`, pw, T.ink)
+         + line(`M ${c} ${c - end} L ${c} ${c + end}`, pw + T.cross * 2, T.bg)
+         + line(`M ${c} ${c - end} L ${c} ${c + end}`, pw, T.ink);
+  }
+  return `<svg viewBox="0 0 ${D} ${D}" width="${D}" height="${D}" `
+    + `xmlns="http://www.w3.org/2000/svg">`
+    + `<clipPath id="${id}"><circle cx="${c}" cy="${c}" r="${R}"/></clipPath>`
+    + `<circle cx="${c}" cy="${c}" r="${R - T.ringW / 2}" fill="${T.bg}" `
+    + `stroke="${T.ring}" stroke-width="${T.ringW}"/>`
+    + `<g clip-path="url(#${id})">${body}</g></svg>`;
+}
+
+/* ── 판 ─────────────────────────────────────────────────────────
+   누름은 쌓아만 둔다 — 그림은 계속 같은 쪽으로 돌고, 통로는 네 번마다
+   제자리로 온다 */
+let Q = null, verdict = "";
+const lit = () => Q && solves(Q.G, Q.tgt, null, null);
+const ownerOf = i => i % V.n;                /* 열 a~d, 행 1~4 를 돌려 나눈다 */
+const mine = i => V.god || ownerOf(i) === V.me - 1;
+
+function press(i){                           /* 0~3 열 a~d · 4~7 행 1~4 */
+  if (!mine(i) || verdict === "ok") return;
+  for (let m = 0; m < 4; m++) (i < 4 ? Q.G[m][i] : Q.G[i - 4][m]).n++;
+  verdict = "";
+  render();
+}
+
+function board(){
+  const D = V.tileD, g = V.gap, L = V.lampD, B = V.btnD, lab = 20;
+  const which = new Map();
+  Q.tgt.forEach((p, i) => p.forEach(l => which.set(key(l), i)));
+  const win = verdict === "ok";
+  const at = (r, c, h) => `<div style="grid-row:${r};grid-column:${c}">${h}</div>`;
+  const dot = l => {
+    const i = which.get(key(l)), on = i !== undefined;
+    return `<div class="dot${on ? " on" : ""}${on && win ? " win" : ""}" `
+      + `style="width:${L}px;height:${L}px;`
+      + `${on ? (win ? DONE : PAIR[V.pair][i]) : ""}"></div>`;
+  };
+  const btn = i => `<button class="btn${mine(i) ? "" : " none"}" data-i="${i}" `
+    + `style="width:${B}px;height:${B}px"></button>`;
+
+  let out = "";
+  for (let j = 0; j < 4; j++){
+    out += at(1, 3 + j, `<i class="name">${FILE[j]}</i>`);
+    out += at(2, 3 + j, dot({ x: j, y: 0, d: N }));
+    out += at(7, 3 + j, dot({ x: j, y: 3, d: S }));
+    out += at(8, 3 + j, btn(j));
+  }
+  for (let i = 0; i < 4; i++){
+    out += at(3 + i, 1, `<i class="name">${i + 1}</i>`);
+    out += at(3 + i, 2, dot({ x: 0, y: i, d: W }));
+    out += at(3 + i, 7, dot({ x: 3, y: i, d: E }));
+    out += at(3 + i, 8, btn(4 + i));
+    for (let j = 0; j < 4; j++)
+      out += at(3 + i, 3 + j,
+        `<div class="tile" style="transform:rotate(${Q.G[i][j].n * 90}deg)">`
+        + tileSVG(Q.G[i][j].kind, D) + `</div>`);
+  }
+  const b = $("board");
+  b.style.gap = g + "px";
+  b.style.gridTemplateColumns = `${lab}px ${L}px repeat(4,${D}px) ${L}px ${B}px`;
+  b.style.gridTemplateRows    = `${lab}px ${L}px repeat(4,${D}px) ${L}px ${B}px`;
+  b.innerHTML = out;
+  $("size").textContent = `판은 가로 ${lab + L * 2 + D * 4 + g * 7 + B}px · `
+    + `세로 ${lab + L * 2 + D * 4 + g * 7 + B}px 든다 (폰은 342px 쯤이다)`;
+}
+
+function render(){
+  readKnobs();
+  if (!Q) return;
+  const sel = $("me");
+  if (sel.options.length !== V.n)
+    sel.innerHTML = Array.from({ length: V.n }, (_, i) =>
+      `<option value="${i + 1}"${i + 1 === V.me ? " selected" : ""}>${i + 1}</option>`).join("");
+  board();
+  const now = depthOf(Q.G, Q.tgt);
+  $("say").innerHTML =
+    `<span><i>처음 깊이</i> <b>${Q.depth}</b></span>`
+    + `<span><i>지금 깊이</i> <b>${now}</b></span>`
+    + `<span><i>푸는 자리</i> <b>${Q.count}</b> / 16384</span>`
+    + `<span><i>뽑느라 버린 판</i> <b>${Q.tries - 1}</b></span>`
+    + `<span><i>짝</i> <b>${Q.tgt.map(p => p.map(spot).join(" ↔ ")).join(" · ")}</b></span>`;
+  const s = $("send");
+  s.className = "btn" + (verdict === "ok" ? " done" : verdict === "bad" ? " bad" : "");
+  $("verdict").textContent = verdict === "ok" ? "이었다"
+    : verdict === "bad" ? "안 이어졌다" : " ";
+}
+
+function deal(){
+  readKnobs();
+  const q = pick(V.lo, V.hi) || pick(0, 9);  // 그 깊이가 안 나오면 아무 깊이로
+  if (!q){ $("pool").textContent = "못 뽑았다 — 다시 눌러라"; return; }
+  q.count = countOf(q.G, q.tgt);
+  Q = q; verdict = "";
+  $("pool").textContent = `깊이 ${V.lo}~${V.hi} 로 뽑았다. `
+    + `버린 판 ${q.tries - 1} 개`;
+  render();
+}
+
+/* ── 난도 재기 ───────────────────────────────────────────────── */
+function survey(n){
+  const hist = new Array(11).fill(0);
+  let tries = 0, deep = 0;
+  for (let i = 0; i < n; i++){
+    const s = seed();
+    if (!s) continue;
+    tries++;
+    for (let k = 0; k < 8; k++){
+      const q = rnd(4);
+      for (let m = 0; m < 4; m++) (k < 4 ? s.g[m][k] : s.g[k - 4][m]).n += q;
+    }
+    const d = depthOf(s.g, s.tgt);
+    if (d === null) continue;
+    hist[Math.min(d, 10)]++;
+    if (d >= V.lo && d <= V.hi) deep++;
+  }
+  const all = hist.reduce((a, b) => a + b, 0), top = Math.max(...hist, 1);
+  const ds = hist.flatMap((c, d) => new Array(c).fill(d));
+  $("bars").innerHTML = hist.map((c, d) =>
+    `<div><span>${c || ""}</span>
+     <u class="${d >= V.lo && d <= V.hi ? "pick" : ""}"
+        style="height:${(c / top * 100).toFixed(1)}%"></u>
+     <span>${d === 10 ? "10+" : d}</span></div>`).join("");
+  $("stat").innerHTML = `${all} 판 · 평균 <b>`
+    + `${(ds.reduce((a, b) => a + b, 0) / all).toFixed(1)}</b>`
+    + ` · 중간값 <b>${ds[Math.floor(all / 2)]}</b>`
+    + ` · 가장 깊은 것 <b>${ds[all - 1]}</b>`
+    + ` · 깊이 ${V.lo}~${V.hi} 가 <b>${(deep / all * 100).toFixed(0)}%</b>`;
+}
+
+/* ── 손가락 ────────────────────────────────────────────────── */
+$("board").onclick = e => {
+  const b = e.target.closest(".btn");
+  if (b) press(+b.dataset.i);
+};
+$("send").onclick = () => {
+  if (!Q || verdict === "ok") return;
+  verdict = lit() ? "ok" : "bad";
+  render();
+};
+$("deal").onclick = deal;
+$("back").onclick = () => {
+  Q.G.forEach((row, i) => row.forEach((t, j) => { t.n = Q.solved[i][j]; }));
+  verdict = ""; render();
+};
+$("hint").onclick = () => {                  /* 값싼 한 수 — 깊이를 줄이는 단추 */
+  const was = depthOf(Q.G, Q.tgt);
+  if (!was) return;                          // 이미 이어져 있다
+  for (let i = 0; i < 8; i++){
+    for (let m = 0; m < 4; m++) (i < 4 ? Q.G[m][i] : Q.G[i - 4][m]).n++;
+    const d = depthOf(Q.G, Q.tgt);
+    if (d === was - 1){ verdict = ""; render(); return; }
+    for (let m = 0; m < 4; m++) (i < 4 ? Q.G[m][i] : Q.G[i - 4][m]).n += 3;
+  }
+};
+$("run100").onclick = () => survey(100);
+$("run400").onclick = () => survey(400);
+$("reset").onclick = () => {
+  for (const [k, , , , def] of KNOB.concat(KNOB2)) $("k_" + k).value = def;
+  render();
+};
+$("dump").onclick = () => {
+  $("out").value = JSON.stringify({
+    tile: Q.G.map(row => row.map(t => t.kind + ":" + ((t.n % 4) + 4) % 4)),
+    lamp: Q.tgt.map(p => p.map(spot)),
+    depth: Q.depth, count: Q.count,
+  }, null, 1);
+};
+for (const el of document.querySelectorAll("input,select")) el.oninput = render;
+
+/* ── 검산 ───────────────────────────────────────────────────── */
+readKnobs();
+deal();
+survey(30);
+const chk = [];
+const ok = (name, got, want) => chk.push([name,
+  JSON.stringify(got) === JSON.stringify(want), got, want]);
+
+ok("+자는 흐름을 꺾지 않는다", [thru("plus", 0, N), thru("plus", 0, E)], [S, W]);
+ok("막다른 길이 없다", KINDS.map(k => new Set(chans(k, 0).flat()).size), [2, 2, 4]);
+ok("램프는 열여섯, 테두리 칸은 열둘",
+   [LAMPS.length, new Set(LAMPS.map(l => l.x + "," + l.y)).size], [16, 12]);
+ok("뽑은 문제는 깊이가 바라는 범위 안이다",
+   Q.depth >= V.lo && Q.depth <= V.hi, true);
+ok("뽑은 문제는 풀린다 · 푸는 자리가 하나 이상이다",
+   [Q.depth !== null, Q.count > 0], [true, true]);
+ok("되돌려 놓으면 두 짝이 이어진다", (() => {
+  const was = Q.G.map(row => row.map(t => t.n));
+  Q.G.forEach((row, i) => row.forEach((t, j) => { t.n = Q.solved[i][j]; }));
+  const got = lit();
+  Q.G.forEach((row, i) => row.forEach((t, j) => { t.n = was[i][j]; }));
+  return got;
+})(), true);
+ok("깊이는 흔든 것을 되돌리는 값보다 크지 않다",
+   [Q.depth <= Q.back, Q.back <= 24], [true, true]);
+ok("한 판에서 갈 수 있는 자리는 16384 가지다", (() => {
+  const seen = new Set();
+  for (let v = 0; v < 65536; v++){
+    load(v);
+    let k = 0;
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) k = k * 4 + ((CB[j] + RB[i]) % 4);
+    seen.add(k);
+  }
+  return seen.size;
+})(), 16384);
+ok("값싼 것부터 훑는다 — 처음 것이 0, 끝이 24",
+   [COST[ORDER[0]], COST[ORDER[65535]]], [0, 24]);
+ok("서른 판을 뽑아 다 풀었다", (() => {
+  for (let i = 0; i < 30; i++){
+    const q = pick(0, 9, 60);
+    if (!q) return "못 뽑았다";
+  }
+  return true;
+})(), true);
+ok("단추 여덟이 다 임자가 있다", [2, 3, 4].map(n => {
+  const who = new Set();
+  for (let i = 0; i < 8; i++) who.add(i % n);
+  return who.size;
+}), [2, 3, 4]);
+ok("제 단추가 아니면 안 눌린다", (() => {
+  const g = V.god, m = V.me;
+  V.god = false; V.me = 1;
+  const not = [...Array(8).keys()].filter(i => !mine(i)).length;
+  V.god = g; V.me = m;
+  return not;
+})(), 6);
+ok("네 번 누르면 제자리다", (() => {
+  const was = rotAt(Q.G, 1, 1, null, null);
+  for (let k = 0; k < 4; k++) for (let m = 0; m < 4; m++) Q.G[m][1].n++;
+  return rotAt(Q.G, 1, 1, null, null) === was;
+})(), true);
+
+$("chk").innerHTML = chk.map(([n, p, got, want]) =>
+  `<div class="${p ? "pass" : "fail"}">${p ? "✔" : "✘"} <b>${n}</b>`
+  + (p ? "" : ` — ${JSON.stringify(got)} ≠ ${JSON.stringify(want)}`) + `</div>`).join("")
+  + `<div class="hint" style="text-align:left;margin-top:6px">`
+  + `${chk.filter(c => c[1]).length} / ${chk.length}</div>`;
+render();
+</script>
+</body>
+</html>
