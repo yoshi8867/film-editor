@@ -178,6 +178,11 @@
     <select id="pairs">
       <option value="2">두 짝</option><option value="3">세 짝</option>
     </select></div>
+  <div class="row"><label>꼬기</label>
+    <select id="loop">
+      <option value="0">그냥</option>
+      <option value="1">한 짝이 +자를 두 방향으로 건넌다</option>
+    </select></div>
   <div id="knobs2"></div>
   <p class="hint" style="text-align:left" id="pool">&nbsp;</p>
 
@@ -371,8 +376,11 @@ function randPairs(k){
 
 /* 램프 A 로 들어가 램프 B 로 나오는 길 하나를 깐다.
    한 칸에 통로는 둘까지고, 둘이면 **둘 다 직선이고 서로 엇갈려야** 한다
-   (= 그 칸이 +자다). 길이 다른 데로 새어 나가서는 안 된다 */
-function route(ch, A, B){
+   (= 그 칸이 +자다). 길이 다른 데로 새어 나가서는 안 된다.
+
+   `loop` 를 켜면 **그 길 하나가 제 몸을 한 번 꼬아야** 한다 — 같은 +자를
+   동서로 한 번, 남북으로 또 한 번 건넌다. 올가미 꼴이 된다 */
+function route(ch, A, B, loop){
   const fits = (cell, a, b) => {
     const list = ch.get(cell);
     if (!list) return true;
@@ -380,20 +388,26 @@ function route(ch, A, B){
     const [p, q] = list[0];
     return OPP[a] === b && OPP[p] === q && a % 2 !== p % 2;
   };
+  const mine = new Set();                    /* 이 길이 지난 칸 */
+  let twice = 0;                             /* 그중 두 번 지난 칸의 수 */
   const go = (x, y, inSide, n) => {
-    if (n > 24) return false;
+    if (n > 32) return false;
     const cell = y * 4 + x;
     for (const o of shuffle([N, E, S, W])){
       if (o === inSide || !fits(cell, inSide, o)) continue;
-      const done = x === B.x && y === B.y && o === B.d;
+      const atB = x === B.x && y === B.y && o === B.d;
       const nx = x + DX[o], ny = y + DY[o];
-      if ((nx < 0 || nx > 3 || ny < 0 || ny > 3) && !done) continue;
+      if ((nx < 0 || nx > 3 || ny < 0 || ny > 3) && !atB) continue;
       const list = ch.get(cell) || [];
+      const dup = mine.has(cell);
       list.push([inSide, o]);
       ch.set(cell, list);
-      if (done || go(nx, ny, OPP[o], n + 1)) return true;
-      list.pop();
+      mine.add(cell);
+      if (dup) twice++;
+      if (atB ? (!loop || twice > 0) : go(nx, ny, OPP[o], n + 1)) return true;
+      list.pop();                            /* 되짚는다 */
       if (!list.length) ch.delete(cell);
+      if (dup) twice--; else mine.delete(cell);
     }
     return false;
   };
@@ -418,7 +432,8 @@ function seed(k){                             // 규칙에 맞는 짝 k 개가 �
     const tgt = randPairs(k);
     if (!tgt) continue;
     const ch = new Map();
-    if (!tgt.every(([a, b]) => route(ch, a, b))) continue;
+    /* 꼬는 길은 **맨 먼저** 깐다. 자리를 많이 쓰니 나중에 깔면 막힌다 */
+    if (!tgt.every(([a, b], j) => route(ch, a, b, V.loop && j === 0))) continue;
     return { g: fill(ch), tgt };
   }
   return null;
@@ -499,6 +514,7 @@ function readKnobs(){
   }
   if (V.lo > V.hi){ V.hi = V.lo; $("k_hi").value = V.lo; $("o_hi").textContent = V.lo; }
   V.pairs = +$("pairs").value;
+  V.loop  = $("loop").value === "1";
   V.n    = +$("n").value;
   V.god  = $("god").value === "1";
   V.me   = Math.min(+($("me").value || 1), V.n);
@@ -805,6 +821,21 @@ ok("흩어놓기도 이어진 짝을 남기지 않는다 · 깊이를 다시 잰
   return [Q.tgt.some((_, i) => okPair(i)), Q.depth === depthOf(Q.G, Q.tgt),
           typeof was === "number"];
 })(), [false, true, true]);
+ok("꼬기를 켜면 한 짝이 +자 하나를 두 방향으로 건넌다", (() => {
+  const was = V.loop;
+  V.loop = true;
+  const q = pick(0, 24, 400, 2);
+  V.loop = was;
+  if (!q) return "못 뽑았다";
+  q.G.forEach((row, i) => row.forEach((t, j) => { t.n = q.solved[i][j]; }));
+  for (const p of q.tgt){
+    const ts = walkT(q.G, p[0]).tiles;
+    const twice = ts.filter((c, i) => ts.indexOf(c) !== i);
+    if (twice.length)
+      return [true, twice.every(c => q.G[c >> 2][c & 3].kind === "plus")];
+  }
+  return "꼬인 짝이 없다";
+})(), [true, true]);
 ok("세 짝짜리 문제도 뽑힌다", (() => {
   const q = pick(0, 9, 200, 3);
   return q ? [q.tgt.length, q.depth !== null] : "못 뽑았다";
