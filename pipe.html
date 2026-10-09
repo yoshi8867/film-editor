@@ -263,14 +263,30 @@ function walk(G, lamp, c, r){
   }
   return null;
 }
-function allPairs(G, c, r){
-  const seen = new Set(), out = [];
-  for (const l of LAMPS){
-    if (seen.has(key(l))) continue;
-    const o = walk(G, l, c, r);
-    if (o && key(o) !== key(l)){ seen.add(key(l)); seen.add(key(o)); out.push([l, o]); }
+/* 램프 짝의 규칙 — **멀어야 한다.**
+   짝의 두 램프는 **맞은편 면**이어야 하고(위↔아래 · 왼↔오른), 지나는
+   **열이 바뀌어야** 한다. a1 위에서 a4 아래로 곧장 내려가는 것은 한 열에
+   직선만 깔면 되니 문제가 아니다 (좌우 짝은 네 열을 다 건너니 저절로 된다).
+   두 짝짜리는 둘을 더 지킨다 — 둘이 **네 면을 다 쓰고**(한 짝은 위아래, 한
+   짝은 좌우), 어딘가에서 **+자 하나로 엇갈린다.** 두 길이 같은 칸을
+   지났다면 그 칸은 반드시 +자다 — 직선과 꺾임은 통로가 하나뿐이라
+   두 길이 같이 쓸 수 없다. 세 짝짜리는 엇갈림을 안 따진다 (면이 넷뿐이라
+   두 짝이 같은 축을 쓰게 된다) */
+const far = (a, b) => OPP[a.d] === b.d && a.x !== b.x;
+const upDown = l => l.d === N || l.d === S;
+
+function walkT(G, lamp){                     /* 지나는 칸까지 적어 온다 */
+  let x = lamp.x, y = lamp.y, side = lamp.d;
+  const tiles = [];
+  for (let i = 0; i < 64; i++){
+    tiles.push(y * 4 + x);
+    const out = thru(G[y][x].kind, rotAt(G, x, y, null, null), side);
+    if (out < 0) return { out: null, tiles };
+    const nx = x + DX[out], ny = y + DY[out];
+    if (nx < 0 || nx > 3 || ny < 0 || ny > 3) return { out: { x, y, d: out }, tiles };
+    x = nx; y = ny; side = OPP[out];
   }
-  return out;
+  return { out: null, tiles };
 }
 function solves(G, tgt, c, r){
   for (const [a, b] of tgt){
@@ -313,26 +329,96 @@ function countOf(G, tgt){                    // 푸는 자리가 몇 개인가
 }
 
 /* ── 문제 뽑기 ───────────────────────────────────────────────────
-   **해를 먼저 깐다.** 두 짝이 이어진 판을 찾고, 거기서 거꾸로 흔든다.
-   흔든 것을 되돌리는 길이 있으니 늘 풀린다. 그러고 나서 깊이를 재어
-   바라는 범위가 아니면 버린다 — 깊이는 흔든 값보다 얕을 수 있다 */
+   **길을 먼저 깐다.** 아무렇게나 깔아 놓고 규칙에 맞는 짝을 찾는 것은
+   헛수고다 — 네 면을 가로지르는 긴 길 둘이 우연히 나는 판은 **천 판에
+   한 판**이고, 그런 길이 셋인 판은 **사만 판에 한 판**이다 (파이선으로
+   따로 세어 맞춰 본 값이다).
+   그래서 **램프 짝을 먼저 고르고, 그 사이로 길을 깔고, 남은 칸을 아무
+   타일로 채운다.** 그 판이 해다. 거기서 거꾸로 흔들면 문제가 된다 */
 const rnd = n => Math.floor(Math.random() * n);
+const shuffle = a => {
+  for (let i = a.length - 1; i > 0; i--){
+    const j = rnd(i + 1), t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+};
 const MIX = ["line", "line", "line", "bend", "bend", "bend", "bend", "plus"];
 function rawGrid(){
   return Array.from({ length: 4 }, () =>
     Array.from({ length: 4 }, () => ({ kind: MIX[rnd(MIX.length)], n: rnd(4) })));
 }
-function seed(k){                             // 짝 k 개가 이어진 판 하나
-  for (let i = 0; i < 300; i++){
-    const g = rawGrid(), ps = allPairs(g);
-    if (ps.length < k) continue;
-    for (let j = ps.length - 1; j > 0; j--){  // 섞어 앞에서 k 개를 쓴다
-      const m = rnd(j + 1);
-      const t = ps[j]; ps[j] = ps[m]; ps[m] = t;
+/* 램프 짝을 고른다. 두 짝짜리는 **한 짝이 위아래, 한 짝이 좌우**라
+   네 면을 다 쓴다. 세 짝짜리는 거기에 아무 축 하나를 더 얹는다 */
+const lampOf = (ax, i, end) => ax
+  ? { x: end ? 0 : 3, y: i, d: end ? W : E }
+  : { x: i, y: end ? 3 : 0, d: end ? S : N };
+function randPairs(k){
+  const axes = shuffle(k === 2 ? [0, 1] : [0, 1, rnd(2)]);
+  const out = [], used = new Set();
+  for (const ax of axes){
+    for (let t = 0; t < 40; t++){
+      const a = lampOf(ax, rnd(4), 0), b = lampOf(ax, rnd(4), 1);
+      if (!far(a, b)) continue;               // 맞은편 면 · 열이 바뀌어야 한다
+      if (used.has(key(a)) || used.has(key(b))) continue;
+      used.add(key(a)); used.add(key(b));
+      out.push([a, b]);
+      break;
     }
-    const tgt = ps.slice(0, k);
-    if (new Set(tgt.flat().map(key)).size !== k * 2) continue;
-    return { g, tgt };
+  }
+  return out.length === k ? out : null;
+}
+
+/* 램프 A 로 들어가 램프 B 로 나오는 길 하나를 깐다.
+   한 칸에 통로는 둘까지고, 둘이면 **둘 다 직선이고 서로 엇갈려야** 한다
+   (= 그 칸이 +자다). 길이 다른 데로 새어 나가서는 안 된다 */
+function route(ch, A, B){
+  const fits = (cell, a, b) => {
+    const list = ch.get(cell);
+    if (!list) return true;
+    if (list.length >= 2) return false;
+    const [p, q] = list[0];
+    return OPP[a] === b && OPP[p] === q && a % 2 !== p % 2;
+  };
+  const go = (x, y, inSide, n) => {
+    if (n > 24) return false;
+    const cell = y * 4 + x;
+    for (const o of shuffle([N, E, S, W])){
+      if (o === inSide || !fits(cell, inSide, o)) continue;
+      const done = x === B.x && y === B.y && o === B.d;
+      const nx = x + DX[o], ny = y + DY[o];
+      if ((nx < 0 || nx > 3 || ny < 0 || ny > 3) && !done) continue;
+      const list = ch.get(cell) || [];
+      list.push([inSide, o]);
+      ch.set(cell, list);
+      if (done || go(nx, ny, OPP[o], n + 1)) return true;
+      list.pop();
+      if (!list.length) ch.delete(cell);
+    }
+    return false;
+  };
+  return go(A.x, A.y, A.d, 0);
+}
+
+/* 길이 지난 칸은 그 통로대로, 남은 칸은 아무 타일로 채운다 */
+function fill(ch){
+  const g = rawGrid();
+  for (const [cell, list] of ch){
+    const t = g[cell >> 2][cell & 3];
+    if (list.length === 2){ t.kind = "plus"; t.n = 0; continue; }
+    const [a, b] = list[0];
+    if (OPP[a] === b){ t.kind = "line"; t.n = a % 2; }
+    else { t.kind = "bend"; t.n = b === (a + 1) % 4 ? a : b; }
+  }
+  return g;
+}
+
+function seed(k){                             // 규칙에 맞는 짝 k 개가 이어진 판
+  for (let i = 0; i < 200; i++){
+    const tgt = randPairs(k);
+    if (!tgt) continue;
+    const ch = new Map();
+    if (!tgt.every(([a, b]) => route(ch, a, b))) continue;
+    return { g: fill(ch), tgt };
   }
   return null;
 }
@@ -350,6 +436,12 @@ function pick(lo, hi, cap, k){                // 깊이가 lo~hi 인 문제
       for (let m = 0; m < 4; m++)
         (k < 4 ? s.g[m][k] : s.g[k - 4][m]).n += q;
     }
+    /* **새 판에 이미 이어진 짝이 있으면 버린다** — 처음부터 녹색인
+       램프가 있어서는 안 된다 */
+    if (s.tgt.some(([a, b]) => {
+      const o = walk(s.g, a, null, null);
+      return o && key(o) === key(b);
+    })) continue;
     const d = depthOf(s.g, s.tgt);
     if (d === null || d < lo || d > hi) continue;
     return { G: s.g, tgt: s.tgt, solved, depth: d, back, tries };
@@ -372,8 +464,8 @@ const KNOB = [
   ["off",   "점멸 바닥",   0,  40,  0, "%"],
 ];
 const KNOB2 = [                              /* 문제를 뽑는 틀 */
-  ["lo", "깊이 아래", 0, 9, 4, ""],
-  ["hi", "깊이 위",   0, 9, 9, ""],
+  ["lo", "깊이 아래", 0, 16,  0, ""],
+  ["hi", "깊이 위",   0, 16, 16, ""],
 ];
 const V = {};
 const slider = ([k, name, lo, hi, def, unit]) =>
@@ -571,20 +663,14 @@ function deal(){
 
 /* ── 난도 재기 ───────────────────────────────────────────────── */
 function survey(n){
-  const hist = new Array(11).fill(0);
+  const hist = new Array(14).fill(0);
   let tries = 0, deep = 0;
   for (let i = 0; i < n; i++){
-    const s = seed(V.pairs);
-    if (!s) continue;
-    tries++;
-    for (let k = 0; k < 8; k++){
-      const q = rnd(4);
-      for (let m = 0; m < 4; m++) (k < 4 ? s.g[m][k] : s.g[k - 4][m]).n += q;
-    }
-    const d = depthOf(s.g, s.tgt);
-    if (d === null) continue;
-    hist[Math.min(d, 10)]++;
-    if (d >= V.lo && d <= V.hi) deep++;
+    const q = pick(0, 24, 400, V.pairs);     /* 깊이는 안 가리고 다 받는다 */
+    if (!q) continue;
+    tries += q.tries;
+    hist[Math.min(q.depth, 13)]++;
+    if (q.depth >= V.lo && q.depth <= V.hi) deep++;
   }
   const all = hist.reduce((a, b) => a + b, 0), top = Math.max(...hist, 1);
   const ds = hist.flatMap((c, d) => new Array(c).fill(d));
@@ -592,12 +678,13 @@ function survey(n){
     `<div><span>${c || ""}</span>
      <u class="${d >= V.lo && d <= V.hi ? "pick" : ""}"
         style="height:${(c / top * 100).toFixed(1)}%"></u>
-     <span>${d === 10 ? "10+" : d}</span></div>`).join("");
+     <span>${d === 13 ? "13+" : d}</span></div>`).join("");
   $("stat").innerHTML = `${all} 판 · 평균 <b>`
     + `${(ds.reduce((a, b) => a + b, 0) / all).toFixed(1)}</b>`
     + ` · 중간값 <b>${ds[Math.floor(all / 2)]}</b>`
     + ` · 가장 깊은 것 <b>${ds[all - 1]}</b>`
-    + ` · 깊이 ${V.lo}~${V.hi} 가 <b>${(deep / all * 100).toFixed(0)}%</b>`;
+    + ` · 깊이 ${V.lo}~${V.hi} 가 <b>${(deep / all * 100).toFixed(0)}%</b>`
+    + ` · 한 판 뽑는 데 판 <b>${(tries / all).toFixed(1)}</b> 개를 본다`;
 }
 
 /* ── 손가락 ────────────────────────────────────────────────── */
@@ -668,6 +755,28 @@ ok("가락 글이 그대로 들어간다 — 켜짐 칸은 1, 꺼짐 칸은 0",
      return [(css.match(/opacity:1/g) || []).length,
              (css.match(/opacity:0/g) || []).length];
    })(), [2, 1]);
+ok("멀어야 한다 — 맞은편 면에, 열이 바뀌어야 한다", [
+  far({ x: 0, y: 0, d: N }, { x: 0, y: 0, d: W }),   /* a1 위 → a1 왼쪽 */
+  far({ x: 0, y: 0, d: N }, { x: 0, y: 3, d: S }),   /* a1 위 → a4 아래 — 한 열 */
+  far({ x: 0, y: 0, d: N }, { x: 2, y: 3, d: S }),   /* a1 위 → c4 아래 */
+  far({ x: 3, y: 3, d: E }, { x: 0, y: 3, d: W }),   /* d4 오른쪽 → a4 왼쪽 */
+], [false, false, true, true]);
+ok("뽑은 짝이 다 맞은편 면이고 열이 바뀐다",
+   Q.tgt.every(([a, b]) => far(a, b)), true);
+ok("두 짝이 네 면을 다 쓴다", (() => {
+  const q = pick(0, 24, 400, 2);
+  return q ? new Set(q.tgt.flat().map(l => l.d)).size : "못 뽑았다";
+})(), 4);
+ok("두 길이 +자 한 칸에서 엇갈린다", (() => {
+  const q = pick(0, 24, 400, 2);
+  if (!q) return "못 뽑았다";
+  q.G.forEach((row, i) => row.forEach((t, j) => { t.n = q.solved[i][j]; }));
+  const [a, b] = q.tgt.map(p => new Set(walkT(q.G, p[0]).tiles));
+  const same = [...a].filter(t => b.has(t));
+  return [same.length > 0, same.every(t => q.G[t >> 2][t & 3].kind === "plus")];
+})(), [true, true]);
+ok("새 판에는 이어진 짝이 하나도 없다",
+   Q.tgt.map((_, i) => okPair(i)), Q.tgt.map(() => false));
 ok("세 짝짜리 문제도 뽑힌다", (() => {
   const q = pick(0, 9, 200, 3);
   return q ? [q.tgt.length, q.depth !== null] : "못 뽑았다";
