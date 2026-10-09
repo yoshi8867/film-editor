@@ -52,6 +52,8 @@
     border:1px solid var(--line);border-radius:var(--r-sm);padding:var(--s-2);
     font:11px/1.5 ui-monospace,Consolas,monospace;resize:vertical}
   .hint{font-size:var(--t-sm);color:var(--dim);margin:0;text-align:center}
+  textarea.art{height:150px;color:var(--text);letter-spacing:.22em;
+    font:17px/1.45 ui-monospace,Consolas,"D2Coding",monospace;text-align:center}
   .hint b{color:var(--text);font-weight:600}
   .wide{width:min(560px,100%)}
 
@@ -157,6 +159,22 @@
   </div>
 
   <div class="wide">
+    <h2>그림으로 보고 고치기</h2>
+    <p class="hint">
+      가운데 4×4 가 원판이고, <b>둘레의 수가 짝 번호</b>다 (1·2·3).
+      <code>*</code> 로 적어도 되지만 그때는 <b>풀린 꼴</b>이어야 짝을 찾는다.
+      고쳐서 「읽어 들이기」를 누르면 그대로 판이 된다.
+    </p>
+    <textarea class="art" id="art" spellcheck="false"></textarea>
+    <div class="row" style="justify-content:center">
+      <button id="read">읽어 들이기</button>
+      <button id="artnow">지금 판 적기</button>
+      <button id="artsol">풀린 꼴 적기</button>
+      <span class="hint" id="artsay"></span>
+    </div>
+  </div>
+
+  <div class="wide">
     <h2>난도 — 깊이 분포</h2>
     <p class="hint">
       깊이는 <b>목표와 지금 사이의 최소 누름 수</b>다. 4<sup>8</sup> 가지를
@@ -227,7 +245,7 @@
 
   <h2>내보내기</h2>
   <div class="row">
-    <button id="dump">이 문제 JSON</button>
+    <button id="dump">이 문제 JSON (풀린 꼴)</button>
     <button id="reset">되돌린다</button>
   </div>
   <textarea id="out" readonly></textarea>
@@ -522,7 +540,121 @@ const BANK = [
            ["line:0", "bend:0", "plus:0", "plus:0"],
            ["bend:0", "line:1", "plus:0", "bend:3"]],
     lamp: [["d1 ↑", "c4 ↓"], ["a2 ←", "d3 →"]] },
+  { tile: [["line:0", "bend:0", "bend:1", "bend:2"],
+           ["bend:0", "bend:2", "bend:0", "plus:0"],
+           ["bend:1", "plus:0", "line:1", "bend:3"],
+           ["bend:3", "bend:0", "line:1", "bend:2"]],
+    lamp: [["d2 →", "a4 ←"], ["a1 ↑", "d4 ↓"]] },
+  { tile: [["bend:1", "line:1", "bend:3", "bend:0"],
+           ["line:0", "bend:1", "bend:2", "bend:1"],
+           ["plus:0", "plus:0", "bend:3", "line:0"],
+           ["line:0", "bend:0", "line:1", "bend:3"]],
+    lamp: [["d2 →", "a3 ←"], ["c1 ↑", "a4 ↓"]] },
+  { tile: [["bend:1", "bend:3", "bend:1", "line:1"],
+           ["line:0", "bend:1", "plus:0", "bend:2"],
+           ["line:0", "bend:0", "bend:3", "line:0"],
+           ["plus:0", "line:1", "line:1", "bend:3"]],
+    lamp: [["b1 ↑", "a4 ↓"], ["d1 →", "a4 ←"]] },
+  { tile: [["bend:1", "bend:2", "line:1", "line:0"],
+           ["bend:0", "plus:0", "line:1", "bend:3"],
+           ["line:1", "plus:0", "bend:2", "bend:2"],
+           ["bend:1", "bend:3", "bend:0", "line:1"]],
+    lamp: [["d1 ↑", "a4 ↓"], ["d4 →", "a3 ←"]] },
 ];
+
+/* ── 그림으로 적고 읽기 ─────────────────────────────────────────
+   사람이 손으로 문제를 그릴 수 있게, 판을 **상자 글자 6×6** 으로 적는다.
+
+       .12..        0 번 칸은 왼쪽 램프, 5 번 칸은 오른쪽 램프
+       .┌┐┌┘        0 번 줄은 위 램프, 5 번 줄은 아래 램프
+       2┼┼┼┐        가운데 4×4 가 원판이다
+       .│└┼┼1       램프에 적는 수가 **짝 번호**다 (1·2·3)
+       .└─┼┘        `*` 로 적어도 된다 — 그때는 길을 걸어 짝을 찾는다
+       ..1..        (그러려면 그린 것이 풀린 꼴이어야 한다)
+*/
+const ART = { "02": "│", "13": "─", "12": "┌", "23": "┐", "01": "└", "03": "┘" };
+const ART_BACK = (() => {
+  const m = new Map();
+  for (const [sig, ch] of Object.entries(ART)){
+    const want = sig.split("").map(Number).sort().join("");
+    for (const k of KINDS) for (let r = 0; r < 4; r++){
+      const c = chans(k, r);
+      if (c.length === 1 && [...c[0]].sort().join("") === want && !m.has(ch))
+        m.set(ch, { kind: k, n: r });
+    }
+  }
+  m.set("┼", { kind: "plus", n: 0 });
+  return m;
+})();
+
+function artOf(G, tgt){
+  const tag = new Map();
+  tgt.forEach((p, i) => p.forEach(l => tag.set(key(l), String(i + 1))));
+  const at = (x, y, d) => tag.get(x + "," + y + "," + d) || ".";
+  const out = ["." + [0, 1, 2, 3].map(x => at(x, 0, N)).join("") + "."];
+  for (let y = 0; y < 4; y++){
+    let s = at(0, y, W);
+    for (let x = 0; x < 4; x++){
+      const t = G[y][x], r = ((t.n % 4) + 4) % 4;
+      s += t.kind === "plus" ? "┼"
+         : ART[chans(t.kind, r).map(p => [...p].sort().join(""))[0]];
+    }
+    out.push(s + at(3, y, E));
+  }
+  out.push("." + [0, 1, 2, 3].map(x => at(x, 3, S)).join("") + ".");
+  return out.join("\n");
+}
+
+/* 그림을 판으로. 성치 않으면 까닭을 글로 돌려준다 */
+function artRead(txt){
+  const ls = txt.replace(/\r/g, "").split("\n").filter(s => s.trim());
+  if (ls.length < 6) return "여섯 줄이어야 한다";
+  const ch = (r, c) => (ls[r] || "")[c] || ".";
+  const G = [];
+  for (let y = 0; y < 4; y++){
+    const row = [];
+    for (let x = 0; x < 4; x++){
+      const c = ch(y + 1, x + 1), t = ART_BACK.get(c);
+      if (!t) return `${FILE[x]}${y + 1} 자리의 「${c}」 를 모른다`;
+      row.push({ kind: t.kind, n: t.n });
+    }
+    G.push(row);
+  }
+  const marks = [];
+  for (let i = 0; i < 4; i++){
+    const put = (c, l) => { if (c !== "." && c !== " ") marks.push({ c, l }); };
+    put(ch(0, i + 1), { x: i, y: 0, d: N });
+    put(ch(5, i + 1), { x: i, y: 3, d: S });
+    put(ch(i + 1, 0), { x: 0, y: i, d: W });
+    put(ch(i + 1, 5), { x: 3, y: i, d: E });
+  }
+  if (marks.length < 4 || marks.length > 6 || marks.length % 2)
+    return `램프가 ${marks.length} 개다 — 넷이나 여섯이어야 한다`;
+  let tgt;
+  if (marks.every(m => "123".includes(m.c))){
+    const by = {};
+    for (const m of marks) (by[m.c] = by[m.c] || []).push(m.l);
+    tgt = Object.keys(by).sort().map(k => by[k]);
+    if (!tgt.every(p => p.length === 2)) return "짝마다 램프가 둘이어야 한다";
+  } else {
+    /* `*` 로 적었다 — 길을 걸어 짝을 찾는다 (그린 것이 풀린 꼴이라야 한다) */
+    const left = new Map(marks.map(m => [key(m.l), m.l]));
+    tgt = [];
+    for (const m of marks){
+      if (!left.has(key(m.l))) continue;
+      const o = walk(G, m.l, null, null);
+      if (!o || !left.has(key(o)) || key(o) === key(m.l))
+        return "별표로 적으면 그린 것이 풀린 꼴이어야 한다 (1·2·3 으로 적어라)";
+      left.delete(key(m.l)); left.delete(key(o));
+      tgt.push([m.l, o]);
+    }
+  }
+  const solved = solvedOf(G, tgt);
+  if (!solved) return "풀 수 없는 판이다 — 짝을 다시 보라";
+  const bad = tgt.filter(([a, b]) => !far(a, b)).length;
+  return { G, tgt, solved, cells: cellsOf(G, tgt, solved), count: 0, tries: 1,
+           from: "그림에서 읽었다" + (bad ? ` (가까운 짝 ${bad} 개)` : "") };
+}
 
 /* 적어 둔 꼴을 판으로 */
 function fromText(p){
@@ -601,7 +733,13 @@ function fromBank(){
   for (let t = 0; t < 80; t++){
     const i = rnd(BANK.length), raw = BANK[i], one = fromText(raw);
     if (one.tgt.length !== V.pairs) continue;
-    const s = rnd(8), { g, tgt, name } = symmetry(one.G, one.tgt, s);
+    /* 여덟 꼴 중 **규칙에 맞는 것만** 쓴다. 「열이 바뀌어야 한다」는 자가
+       위아래 짝에만 걸려 있어, 한 행에 가로로 누운 짝을 대각으로 뒤집으면
+       한 열에 선 짝이 되어 자에 걸린다. 그런 꼴은 건너뛴다 */
+    const s = shuffle([0, 1, 2, 3, 4, 5, 6, 7])
+      .find(k => symmetry(one.G, one.tgt, k).tgt.every(([a, b]) => far(a, b)));
+    if (s === undefined) continue;
+    const { g, tgt, name } = symmetry(one.G, one.tgt, s);
     const solved = solvedOf(g, tgt);
     if (!solved) continue;
     const cells = cellsOf(g, tgt, solved);
@@ -844,6 +982,8 @@ function deal(){
   Q = q;
   $("pool").textContent = (q.from || "뽑았다") + ` · 버린 것 ${q.tries - 1} 개`;
   render();
+  artFill(false);
+  $("artsay").textContent = "";
 }
 
 /* ── 난도 재기 ───────────────────────────────────────────────── */
@@ -903,6 +1043,28 @@ function shake(q){
   }
   return false;                              /* 못 흩었다 — 판은 풀린 꼴이다 */
 }
+$("art").value = "";
+const artFill = solved => {
+  if (!Q) return;
+  if (!solved) return void ($("art").value = artOf(Q.G, Q.tgt));
+  const was = Q.G.map(row => row.map(t => t.n));
+  Q.G.forEach((row, y) => row.forEach((t, x) => { t.n = Q.solved[y][x]; }));
+  $("art").value = artOf(Q.G, Q.tgt);
+  Q.G.forEach((row, y) => row.forEach((t, x) => { t.n = was[y][x]; }));
+};
+$("artnow").onclick = () => { artFill(false); $("artsay").textContent = ""; };
+$("artsol").onclick = () => { artFill(true); $("artsay").textContent = ""; };
+$("read").onclick = () => {
+  const got = artRead($("art").value);
+  if (typeof got === "string"){ $("artsay").textContent = got; return; }
+  got.depth = depthOf(got.G, got.tgt);
+  got.back = got.depth;
+  got.count = countOf(got.G, got.tgt);
+  Q = got;
+  $("artsay").textContent = "읽었다";
+  $("pool").textContent = got.from;
+  render();
+};
 $("deal").onclick = deal;
 $("shake").onclick = shake;
 $("back").onclick = () => {
@@ -926,11 +1088,16 @@ $("reset").onclick = () => {
   render();
 };
 $("dump").onclick = () => {
+  /* 문제집은 **풀린 꼴**로 받는다. 지금 흩어진 꼴을 적으면 불러올 때
+     또 흩으므로 같은 문제가 두 번 흩어진다 */
+  const was = Q.G.map(row => row.map(t => t.n));
+  Q.G.forEach((row, y) => row.forEach((t, x) => { t.n = Q.solved[y][x]; }));
   $("out").value = JSON.stringify({
     tile: Q.G.map(row => row.map(t => t.kind + ":" + ((t.n % 4) + 4) % 4)),
     lamp: Q.tgt.map(p => p.map(spot)),
-    depth: Q.depth, count: Q.count,
+    depth: Q.depth, count: Q.count, cells: Q.cells,
   }, null, 1);
+  Q.G.forEach((row, y) => row.forEach((t, x) => { t.n = was[y][x]; }));
 };
 for (const el of document.querySelectorAll("input,select")) el.oninput = render;
 
@@ -995,6 +1162,34 @@ ok("흩어놓기도 이어진 짝을 남기지 않는다 · 깊이를 다시 잰
   return [Q.tgt.some((_, i) => okPair(i)), Q.depth === depthOf(Q.G, Q.tgt),
           typeof was === "number"];
 })(), [false, true, true]);
+ok("그림으로 적고 다시 읽으면 같은 판이다", (() => {
+  const art = artOf(Q.G, Q.tgt);
+  const got = artRead(art);
+  if (typeof got === "string") return got;
+  /* 각이 아니라 **통로 꼴**로 견준다 — 직선은 두 번마다, +자는 매번
+     같은 타일로 돌아오므로 각은 달라도 같은 판이다 */
+  const sig = G => JSON.stringify(G.map(r => r.map(t =>
+    SIG.sig(chans(t.kind, ((t.n % 4) + 4) % 4)))));
+  const same = sig(got.G) === sig(Q.G);
+  /* 짝 안에서 어느 쪽이 먼저인지는 뜻이 없다 — 모아서 견준다 */
+  const set = t => JSON.stringify(t.map(p => p.map(key).sort()));
+  const lamps = set(got.tgt) === set(Q.tgt);
+  return [same, lamps, got.cells === Q.cells];
+})(), [true, true, true]);
+ok("별표로 적은 그림도 읽는다 (풀린 꼴이면 짝을 찾아낸다)", (() => {
+  const was = Q.G.map(row => row.map(t => t.n));
+  Q.G.forEach((row, y) => row.forEach((t, x) => { t.n = Q.solved[y][x]; }));
+  const art = artOf(Q.G, Q.tgt).replace(/[123]/g, "*");
+  Q.G.forEach((row, y) => row.forEach((t, x) => { t.n = was[y][x]; }));
+  const got = artRead(art);
+  if (typeof got === "string") return got;
+  return got.tgt.length === Q.tgt.length;
+})(), true);
+ok("성치 않은 그림은 까닭을 알려 준다", [
+  typeof artRead("...."), typeof artRead(".....\n.XXXX\n.....\n.....\n.....\n....."),
+], ["string", "string"]);
+ok("상자 글자 일곱이 타일 일곱에 그대로 맞는다",
+   [...ART_BACK.keys()].length, 7);
 ok("문제집에 적힌 것이 다 성하다 — 짝이 이어지고 규칙에 맞는다", (() => {
   const bad = [];
   BANK.forEach((raw, i) => {
@@ -1009,6 +1204,14 @@ ok("문제집에 적힌 것이 다 성하다 — 짝이 이어지고 규칙에 �
   });
   return bad;
 })(), []);
+ok("한 행에 누운 가로 짝은 대각으로 뒤집으면 자에 걸린다 — 그 꼴은 안 쓴다",
+   (() => {
+     const a = { x: 3, y: 3, d: E }, b = { x: 0, y: 3, d: W };   /* d4 → a4 */
+     const t = symmetry([[{ kind: "plus", n: 0 }, 0, 0, 0].map(() =>
+       ({ kind: "plus", n: 0 }))].concat([1, 2, 3].map(() =>
+       [0, 0, 0, 0].map(() => ({ kind: "plus", n: 0 })))), [[a, b]], 6);
+     return [far(a, b), far(t.tgt[0][0], t.tgt[0][1])];
+   })(), [true, false]);
 ok("돌리고 뒤집어도 같은 문제다 — 여덟 꼴이 다 풀린다", (() => {
   const { G, tgt } = fromText(BANK[2]);
   const got = [];
