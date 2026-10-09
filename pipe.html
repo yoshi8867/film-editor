@@ -65,7 +65,7 @@
     var(--ease,cubic-bezier(.2,1.5,.4,1))}
   .tile svg{display:block}
 
-  /* 소통용 램프 (.ys-dot). 켜지는 빛깔은 짝마다 --c/--cl 로 갈린다 */
+  /* 소통용 램프 (.ys-dot). 빛깔은 --c/--cl 로 갈아 끼운다 */
   .dot{--c:var(--green);--cl:var(--green-lit);
     border-radius:50%;flex:none;background:var(--ink-700);
     border:1px solid var(--line);
@@ -75,9 +75,26 @@
     box-shadow:0 0 6px var(--cl),0 0 15px var(--c),
       0 0 32px color-mix(in srgb,var(--c) 85%,transparent),
       0 0 56px color-mix(in srgb,var(--c) 50%,transparent)}
+  /* 아직 안 이어졌다 — `.ys-dot.warn` 과 같은 꼴이다 (적색 = 풀리지 않았다) */
+  .dot.warn{--c:var(--red);--cl:color-mix(in srgb,var(--red) 80%,#fff)}
   .dot.win{box-shadow:0 0 8px var(--cl),0 0 22px var(--c),
       0 0 48px color-mix(in srgb,var(--c) 90%,transparent),
       0 0 80px color-mix(in srgb,var(--c) 60%,transparent)}
+
+  /* 짝은 **색이 아니라 가락**으로 가른다 — 다 적색이다.
+     1짝은 숨 쉬듯 어두워졌다 밝아지고(아주 꺼지지는 않는다),
+     2짝은 짧게 끊고, 3짝은 길게 끊는다. 가락은 JS 가 적어 넣는다 */
+  @keyframes dim{0%,100%{opacity:1}50%{opacity:var(--floor,.42)}}
+  .dot.p0{animation:dim var(--bt,3.2s) ease-in-out infinite}
+  .dot.p1{animation:beat1 var(--st,2.8s) linear infinite}
+  .dot.p2{animation:beat2 var(--st,4.4s) linear infinite}
+  /* 움직임을 줄여 달라는 기기에서는 가락이 멈춰 짝이 같아진다 —
+     그런 기기에서만 모양으로 가른다 */
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+    .dot.p1{border-radius:var(--r-sm)}
+    .dot.p2{border-radius:3px;transform:rotate(45deg)}
+  }
 
   /* 둥근 버튼 (.ys-btn). 속은 비운다 */
   .btn{border-radius:50%;border:2px solid var(--gold);padding:0;
@@ -120,14 +137,16 @@
 </head>
 <body>
 
+<style id="beats"></style>
+
 <div class="stage">
   <div class="board" id="board"></div>
-
-  <div class="row" style="gap:var(--s-4)">
-    <button class="btn" id="send" style="width:96px;height:96px"
-      title="제출 — 대장 다람쥐만 누른다"></button>
-  </div>
   <p class="hint" id="verdict">&nbsp;</p>
+  <p class="hint">
+    <b>제출 단추는 없다.</b> 적색은 「아직 안 이어졌다」고, 이어진 짝은
+    그 자리에서 <b>녹색</b>이 된다. 짝은 색이 아니라 <b>가락</b>으로 가른다 —
+    숨 쉬는 짝 · 짧게 끊는 짝 · 길게 끊는 짝.
+  </p>
 
   <div class="say" id="say"></div>
   <div class="row">
@@ -154,6 +173,10 @@
 
 <div class="panel">
   <h2>문제</h2>
+  <div class="row"><label>램프 짝</label>
+    <select id="pairs">
+      <option value="2">두 짝</option><option value="3">세 짝</option>
+    </select></div>
   <div id="knobs2"></div>
   <p class="hint" style="text-align:left" id="pool">&nbsp;</p>
 
@@ -171,13 +194,17 @@
 
   <h2>보임새</h2>
   <div id="knobs"></div>
-  <div class="row"><label>램프 두 짝</label>
-    <select id="pair">
-      <option value="bw">파랑 · 흰색</option>
-      <option value="bp">파랑 · 보라</option>
-      <option value="bwf">파랑 · 흰색 + 원 · 네모</option>
-    </select></div>
   <p class="hint" style="text-align:left" id="size">&nbsp;</p>
+
+  <h2>램프 가락</h2>
+  <div class="row"><label>2짝</label>
+    <input id="b1" value="----,,-,,--,-----,,-,,--,------" style="flex:1"></div>
+  <div class="row"><label>3짝</label>
+    <input id="b2" value=",,,,---------------,,,,------------,,,,-----------"
+      style="flex:1"></div>
+  <p class="hint" style="text-align:left">
+    <code>-</code> 켜짐 · <code>,</code> 꺼짐. 한 칸이 「점멸 한 칸」만큼이다
+  </p>
 
   <h2>내보내기</h2>
   <div class="row">
@@ -295,24 +322,25 @@ function rawGrid(){
   return Array.from({ length: 4 }, () =>
     Array.from({ length: 4 }, () => ({ kind: MIX[rnd(MIX.length)], n: rnd(4) })));
 }
-function seed(){                             // 두 짝이 이어진 판 하나
+function seed(k){                             // 짝 k 개가 이어진 판 하나
   for (let i = 0; i < 300; i++){
     const g = rawGrid(), ps = allPairs(g);
-    if (ps.length < 2) continue;
-    const a = rnd(ps.length);
-    let b = rnd(ps.length);
-    if (a === b) b = (b + 1) % ps.length;
-    const tgt = [ps[a], ps[b]];
-    if (new Set(tgt.flat().map(key)).size !== 4) continue;
+    if (ps.length < k) continue;
+    for (let j = ps.length - 1; j > 0; j--){  // 섞어 앞에서 k 개를 쓴다
+      const m = rnd(j + 1);
+      const t = ps[j]; ps[j] = ps[m]; ps[m] = t;
+    }
+    const tgt = ps.slice(0, k);
+    if (new Set(tgt.flat().map(key)).size !== k * 2) continue;
     return { g, tgt };
   }
   return null;
 }
-function pick(lo, hi, cap){                  // 깊이가 lo~hi 인 문제
+function pick(lo, hi, cap, k){                // 깊이가 lo~hi 인 문제
   let tries = 0;
   for (let i = 0; i < (cap || 400); i++){
     tries++;
-    const s = seed();
+    const s = seed(k || V.pairs);
     if (!s) continue;
     const solved = s.g.map(row => row.map(t => t.n));
     let back = 0;
@@ -338,6 +366,10 @@ const KNOB = [
   ["btnD",  "단추 지름",  36,  80, 40, "px"],
   ["spin",  "도는 시간",  80, 600, 300, "ms"],
   ["pop",   "튕김",        0,  60, 50, "%"],
+  ["bt",    "호흡 시간", 1200, 5000, 3200, "ms"],
+  ["floor", "호흡 바닥",  10,  80, 42, "%"],
+  ["unit",  "점멸 한 칸", 40, 200, 90, "ms"],
+  ["off",   "점멸 바닥",   0,  40,  0, "%"],
 ];
 const KNOB2 = [                              /* 문제를 뽑는 틀 */
   ["lo", "깊이 아래", 0, 9, 4, ""],
@@ -351,14 +383,17 @@ const slider = ([k, name, lo, hi, def, unit]) =>
 $("knobs").innerHTML = KNOB.map(slider).join("");
 $("knobs2").innerHTML = KNOB2.map(slider).join("");
 
-/* 짝을 가르는 빛깔. 뜻을 지닌 색 셋(금·적·녹)은 과제 램프에 쓰지 않는다 */
-const PAIR = {
-  bw:  ["--c:#58a6ff;--cl:#58a6ff", "--c:#ffffff;--cl:#ffffff"],
-  bp:  ["--c:#58a6ff;--cl:#58a6ff", "--c:#a371f7;--cl:#a371f7"],
-  bwf: ["--c:#58a6ff;--cl:#58a6ff",
-        "--c:#ffffff;--cl:#ffffff;border-radius:var(--r-sm)"],
-};
-const DONE = "--c:var(--green);--cl:var(--green-lit)";
+/* 짝은 색이 아니라 **가락**으로 가른다. 램프는 다 적색이고(= 아직 안
+   이어졌다), 이어진 짝만 그 자리에서 녹색이 된다. 가락 글은
+   `-` 켜짐 · `,` 꺼짐 이고, 한 칸이 「점멸 한 칸」이다 */
+function beatCSS(name, pat, off){
+  const n = pat.length;
+  let s = `@keyframes ${name}{`;
+  for (let i = 0; i < n; i++)
+    s += `${(i / n * 100).toFixed(3)}%,${((i + 1) / n * 100 - .001).toFixed(3)}%`
+       + `{opacity:${pat[i] === "-" ? 1 : off}}`;
+  return s + "}";
+}
 
 /* 원판의 생김새는 다 잡혔다 — 고르는 판에서 고른 값이다 */
 const T = { bend: 49, cross: 1, ringW: 1, bg: "hsl(44 32% 74%)",
@@ -370,14 +405,22 @@ function readKnobs(){
     $("o_" + k).textContent = V[k] + unit;
   }
   if (V.lo > V.hi){ V.hi = V.lo; $("k_hi").value = V.lo; $("o_hi").textContent = V.lo; }
-  V.pair = $("pair").value;
+  V.pairs = +$("pairs").value;
   V.n    = +$("n").value;
   V.god  = $("god").value === "1";
   V.me   = Math.min(+($("me").value || 1), V.n);
-  document.body.style.setProperty("--spin", V.spin + "ms");
-  document.body.style.setProperty("--ease",
-    `cubic-bezier(.2,${(1 + V.pop / 100).toFixed(2)},.4,1)`);
+  V.beat = [$("b1").value || "-", $("b2").value || "-"];
+  const st = document.body.style;
+  st.setProperty("--spin", V.spin + "ms");
+  st.setProperty("--ease", `cubic-bezier(.2,${(1 + V.pop / 100).toFixed(2)},.4,1)`);
+  st.setProperty("--bt", V.bt + "ms");
+  st.setProperty("--floor", V.floor / 100);
+  $("beats").textContent =
+    beatCSS("beat1", V.beat[0], V.off / 100) +
+    beatCSS("beat2", V.beat[1], V.off / 100);
 }
+/* 가락 하나가 도는 데 걸리는 시간 — 글자 수 × 한 칸 */
+const beatMS = i => (V.beat[i - 1] || "-").length * V.unit;
 
 /* ── 원판 한 장 ─────────────────────────────────────────────────
    파이프는 원 안에 머문다 (clipPath). 그러지 않으면 꺾이는 자리의
@@ -412,15 +455,18 @@ function tileSVG(kind, D){
 /* ── 판 ─────────────────────────────────────────────────────────
    누름은 쌓아만 둔다 — 그림은 계속 같은 쪽으로 돌고, 통로는 네 번마다
    제자리로 온다 */
-let Q = null, verdict = "";
+let Q = null;
+const okPair = i => {                        /* 이 짝은 이어졌나 */
+  const o = walk(Q.G, Q.tgt[i][0], null, null);
+  return !!o && key(o) === key(Q.tgt[i][1]);
+};
 const lit = () => Q && solves(Q.G, Q.tgt, null, null);
 const ownerOf = i => i % V.n;                /* 열 a~d, 행 1~4 를 돌려 나눈다 */
 const mine = i => V.god || ownerOf(i) === V.me - 1;
 
 function press(i){                           /* 0~3 열 a~d · 4~7 행 1~4 */
-  if (!mine(i) || verdict === "ok") return;
+  if (!mine(i)) return;
   for (let m = 0; m < 4; m++) (i < 4 ? Q.G[m][i] : Q.G[i - 4][m]).n++;
-  verdict = "";
   turn();
 }
 
@@ -428,14 +474,10 @@ function board(){
   const D = V.tileD, g = V.gap, L = V.lampD, B = V.btnD, lab = 20;
   const which = new Map();
   Q.tgt.forEach((p, i) => p.forEach(l => which.set(key(l), i)));
-  const win = verdict === "ok";
   const at = (r, c, h) => `<div style="grid-row:${r};grid-column:${c}">${h}</div>`;
-  const dot = l => {
-    const i = which.get(key(l)), on = i !== undefined;
-    return `<div class="dot${on ? " on" : ""}${on && win ? " win" : ""}" `
-      + `style="width:${L}px;height:${L}px;`
-      + `${on ? (win ? DONE : PAIR[V.pair][i]) : ""}"></div>`;
-  };
+  const dot = l => `<div class="${dotClass(which.get(key(l)))}" `
+    + `id="d${l.x}${l.y}${l.d}" style="width:${L}px;height:${L}px;`
+    + `${dotStyle(which.get(key(l)))}"></div>`;
   const btn = i => `<button class="btn${mine(i) ? "" : " none"}" data-i="${i}" `
     + `style="width:${B}px;height:${B}px"></button>`;
 
@@ -466,14 +508,30 @@ function board(){
     + `세로 ${lab + L * 2 + D * 4 + g * 7 + B}px 든다 (폰은 342px 쯤이다)`;
 }
 
-/* 돌아가는 것만 고친다 — **칸을 다시 만들지 않는다.** 다시 만들면 새
-   요소가 처음부터 그 각도라 애니메이션이 안 걸린다 */
+/* 램프 하나의 꼴 — 꺼진 램프 / 아직 안 이어진 짝(적색 + 제 가락) /
+   이어진 짝(녹색, 가락 없이 가만히) */
+const lampClass = (done, i) => done ? "dot on" : `dot on warn p${i}`;
+const dotClass = i => i === undefined ? "dot" : lampClass(okPair(i), i);
+const dotStyle = i =>
+  i === undefined || i === 0 || okPair(i) ? "" : `--st:${beatMS(i)}ms`;
+
+/* 돌아가는 것과 램프만 고친다 — **칸을 다시 만들지 않는다.** 다시 만들면
+   새 요소가 처음부터 그 각도라 애니메이션이 안 걸린다 */
 function turn(){
   for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++){
     const el = $("t" + i + j);
     if (el) el.style.transform = `rotate(${Q.G[i][j].n * 90}deg)`;
   }
+  paint();
   say();
+}
+function paint(){                            /* 켜진 램프들의 꼴만 고친다 */
+  Q.tgt.forEach((p, i) => p.forEach(l => {
+    const el = $("d" + l.x + l.y + l.d);
+    if (!el) return;
+    el.className = dotClass(i);
+    el.style.cssText = `width:${V.lampD}px;height:${V.lampD}px;${dotStyle(i)}`;
+  }));
 }
 
 function render(){
@@ -495,10 +553,9 @@ function say(){
     + `<span><i>푸는 자리</i> <b>${Q.count}</b> / 16384</span>`
     + `<span><i>뽑느라 버린 판</i> <b>${Q.tries - 1}</b></span>`
     + `<span><i>짝</i> <b>${Q.tgt.map(p => p.map(spot).join(" ↔ ")).join(" · ")}</b></span>`;
-  const s = $("send");
-  s.className = "btn" + (verdict === "ok" ? " done" : verdict === "bad" ? " bad" : "");
-  $("verdict").textContent = verdict === "ok" ? "이었다"
-    : verdict === "bad" ? "안 이어졌다" : " ";
+  const n = Q.tgt.filter((_, i) => okPair(i)).length;
+  $("verdict").textContent = n === Q.tgt.length
+    ? "다 이었다" : `${n} / ${Q.tgt.length} 짝 이었다`;
 }
 
 function deal(){
@@ -506,7 +563,7 @@ function deal(){
   const q = pick(V.lo, V.hi) || pick(0, 9);  // 그 깊이가 안 나오면 아무 깊이로
   if (!q){ $("pool").textContent = "못 뽑았다 — 다시 눌러라"; return; }
   q.count = countOf(q.G, q.tgt);
-  Q = q; verdict = "";
+  Q = q;
   $("pool").textContent = `깊이 ${V.lo}~${V.hi} 로 뽑았다. `
     + `버린 판 ${q.tries - 1} 개`;
   render();
@@ -517,7 +574,7 @@ function survey(n){
   const hist = new Array(11).fill(0);
   let tries = 0, deep = 0;
   for (let i = 0; i < n; i++){
-    const s = seed();
+    const s = seed(V.pairs);
     if (!s) continue;
     tries++;
     for (let k = 0; k < 8; k++){
@@ -548,17 +605,10 @@ $("board").onclick = e => {
   const b = e.target.closest(".btn");
   if (b) press(+b.dataset.i);
 };
-$("send").onclick = () => {
-  if (!Q || verdict === "ok") return;
-  verdict = lit() ? "ok" : "bad";
-  render();
-};
 $("deal").onclick = deal;
 $("back").onclick = () => {
   Q.G.forEach((row, i) => row.forEach((t, j) => { t.n = Q.solved[i][j]; }));
-  const was = verdict;
-  verdict = "";
-  was ? render() : turn();                   // 녹색이던 램프는 되돌려 그린다
+  turn();
 };
 $("hint").onclick = () => {                  /* 값싼 한 수 — 깊이를 줄이는 단추 */
   const was = depthOf(Q.G, Q.tgt);
@@ -566,7 +616,7 @@ $("hint").onclick = () => {                  /* 값싼 한 수 — 깊이를 줄
   for (let i = 0; i < 8; i++){
     for (let m = 0; m < 4; m++) (i < 4 ? Q.G[m][i] : Q.G[i - 4][m]).n++;
     const d = depthOf(Q.G, Q.tgt);
-    if (d === was - 1){ verdict = ""; turn(); return; }
+    if (d === was - 1){ turn(); return; }
     for (let m = 0; m < 4; m++) (i < 4 ? Q.G[m][i] : Q.G[i - 4][m]).n += 3;
   }
 };
@@ -601,7 +651,28 @@ ok("뽑은 문제는 깊이가 바라는 범위 안이다",
    Q.depth >= V.lo && Q.depth <= V.hi, true);
 ok("뽑은 문제는 풀린다 · 푸는 자리가 하나 이상이다",
    [Q.depth !== null, Q.count > 0], [true, true]);
-ok("되돌려 놓으면 두 짝이 이어진다", (() => {
+ok("안 이어진 짝은 적색이고, 이어지면 녹색이 된다 — 가락도 멈춘다",
+   [lampClass(false, 0), lampClass(true, 0)], ["dot on warn p0", "dot on"]);
+ok("짝마다 가락이 다르다 — 숨 쉬기 · 짧게 끊기 · 길게 끊기",
+   [0, 1, 2].map(i => lampClass(false, i).split(" ").pop()), ["p0", "p1", "p2"]);
+ok("되돌려 놓으면 램프가 다 녹색이다", (() => {
+  const was = Q.G.map(row => row.map(t => t.n));
+  Q.G.forEach((row, i) => row.forEach((t, j) => { t.n = Q.solved[i][j]; }));
+  const got = Q.tgt.map((_, i) => dotClass(i));
+  Q.G.forEach((row, i) => row.forEach((t, j) => { t.n = was[i][j]; }));
+  return got;
+})(), ["dot on", "dot on"]);
+ok("가락 글이 그대로 들어간다 — 켜짐 칸은 1, 꺼짐 칸은 0",
+   (() => {
+     const css = beatCSS("t", "-,-", 0);
+     return [(css.match(/opacity:1/g) || []).length,
+             (css.match(/opacity:0/g) || []).length];
+   })(), [2, 1]);
+ok("세 짝짜리 문제도 뽑힌다", (() => {
+  const q = pick(0, 9, 200, 3);
+  return q ? [q.tgt.length, q.depth !== null] : "못 뽑았다";
+})(), [3, true]);
+ok("되돌려 놓으면 짝이 다 이어진다", (() => {
   const was = Q.G.map(row => row.map(t => t.n));
   Q.G.forEach((row, i) => row.forEach((t, j) => { t.n = Q.solved[i][j]; }));
   const got = lit();
